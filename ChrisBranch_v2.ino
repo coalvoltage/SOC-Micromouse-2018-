@@ -6,9 +6,6 @@
  *To editors: use Crtl-F:
  *  //? needs a comment to explain
  *  //! is a suggestion up for consideration
- *  
- *  To do: 
- *  Develop interference detection system
  */
 
 
