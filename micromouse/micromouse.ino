@@ -124,8 +124,6 @@ void loop() {
 	  
   }
   
-  
-  
   /*if(sensorReadFL > sensorReadFR * 1.10) {
     speedMaxLeft = speedMax * 0.9;
     speedMaxRight = speedMax;
