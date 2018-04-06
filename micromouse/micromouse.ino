@@ -21,15 +21,15 @@ bool goalFound = false;
 
 
 //pins
-int irRecievePinL = A7;
-int irRecievePinFL = A6;
-int irRecievePinFR = A5;
-int irRecievePinR = A4;
+int irRecievePinL = A5;
+int irRecievePinFL = A4;
+int irRecievePinFR = A3;
+int irRecievePinR = A2;
 
-int irEmitPinL = 23;
-int irEmitPinFL = 22;
-int irEmitPinFR = 17;
-int irEmitPinR = 16;
+int irEmitPinL = A9;
+int irEmitPinFL = A8;
+int irEmitPinFR = A7;
+int irEmitPinR = A6;
 
 int forwardPinL = 6;
 int reversePinL = 5;
@@ -123,8 +123,6 @@ void loop() {
   if(!goalFound) {
 	  
   }
-  
-  
   
   /*if(sensorReadFL > sensorReadFR * 1.10) {
     speedMaxLeft = speedMax * 0.9;
