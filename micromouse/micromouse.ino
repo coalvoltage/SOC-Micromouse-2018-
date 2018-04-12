@@ -3,18 +3,19 @@
 #define USERREV 2
 #define USERLEF 3
 #define USERRIG 4
-
+#define SIZEX 16
+#define SIZEY 16
 //maze specs
-int sizeX = 16;
-int sizeY = 16;
+int sizeX = SIZEX;
+int sizeY = SIZEY;
 
 int goalx = sizeX/2;
 int goaly = sizeY/2;
 
-int mazeDist[sizeX][sizeY];
-int mazeWalls[sizeX][sizeY];
+int mazeDist[SIZEX][SIZEY];
+int mazeWalls[SIZEX][SIZEY];
 
-int checkQueue[sizeX * sizeY];
+int checkQueue[SIZEX * SIZEY];
 
 
 bool goalFound = false;
@@ -66,7 +67,7 @@ void turnRight(int pinForL, int pinRevL, int pinForR, int pinRevR, int motSpeed)
 
 void moveWheels(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
 
-void moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int reversePinL,int forwardPinR,int reversePinR);
   //ir functions
 int findLightInterference(int rL, int rFL, int rFR, int rR, int eL, int eFL, int eFR, int eR);
 
@@ -77,8 +78,6 @@ void setup() {
   pinMode(bPinL, INPUT);
   pinMode(aPinR, INPUT);
   pinMode(bPinR, INPUT);
-  
-  attachInterupt(
   
   //motor control pins
   pinMode(forwardPinL, OUTPUT);
@@ -99,7 +98,6 @@ void setup() {
   pinMode(irEmitPinR, OUTPUT);
 
   //find interference
-  inter = findLightInterference(irRecievePinL, irRecievePinFL, irRecievePinFR, irRecievePinR, irEmitPinL, irEmitPinFL, irEmitPinFR, irEmitPinR);
 
   //setup maze vars
   for(int i = 0; i < sizeX/2; i++) {
@@ -123,7 +121,7 @@ void loop() {
   if(!goalFound) {
 	  
   }
-  
+
   /*if(sensorReadFL > sensorReadFR * 1.10) {
     speedMaxLeft = speedMax * 0.9;
     speedMaxRight = speedMax;
@@ -138,9 +136,19 @@ void loop() {
   }*/
   
   
-  
-  userCommand = USERFOR;
+  //if (sensorReadFR <= 200) {
+  //  userCommand = USERFOR;
+  /*}
+  else {
+    userCommand = USERBRK;
+  }*/
+  /*Serial.println(userCommand);
   moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+  delay(1000);*/
+  userCommand = USERBRK;
+  Serial.println(userCommand);
+  moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+  delay(1000);
   
 }
 
@@ -169,7 +177,7 @@ void turnRight(int pinForL, int pinRevL, int pinForR, int pinRevR, int motSpeed)
   moveWheels(motSpeed, 0, pinForL, pinRevL, pinForR, pinRevR);
 }
 
-void moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR) {
+void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int reversePinL,int forwardPinR,int reversePinR) {
   switch(userCommand) {
     case USERBRK:
     moveBreak(forwardPinL, reversePinL);
@@ -193,7 +201,7 @@ void moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, for
     break;
     
     default:
-	moveBreak(forwardPinL, reversePinL);
+	  moveBreak(forwardPinL, reversePinL);
     moveBreak(forwardPinR, reversePinR);
     break;
   }
@@ -237,26 +245,13 @@ while(start != goal)
 return ideal path*/
 }
 
-int findLightInterference(int rL, int rFL, int rFR, int rR, int eL, int eFL, int eFR, int eR) {
-	int interArray[4];
+int findLightInterference(int pinEmit, int pinRecieve) {
 	int minInter;
-	analogWrite(eL, LOW);
-	analogWrite(eFL, LOW);
-	analogWrite(eFR, LOW);
-	analogWrite(eR, LOW);
+	analogWrite(pinEmit, 0);
 	
-	delay(100);
-	
-	interArray[0] = analogRead(rL);
-	interArray[1] = analogRead(rFL);
-	interArray[2] = analogRead(rFR);
-	interArray[3] = analogRead(rR);
-	
-	minInter = interArray[0]
-	for(int i = 1; i < 4; i++) {
-		if(minVal > interArray[i]) {
-			minInter = interArray[i];
-		}
-	}
+	delay(10);
+
+  minInter = analogRead(pinRecieve);
+  
 	return minInter;
 }
