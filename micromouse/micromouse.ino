@@ -3,6 +3,8 @@
 #define USERREV 2
 #define USERLEF 3
 #define USERRIG 4
+#define USERINV 5
+
 #define SIZEX 16
 #define SIZEY 16
 //maze specs
@@ -32,40 +34,52 @@ int irEmitPinFL = A8;
 int irEmitPinFR = A7;
 int irEmitPinR = A6;
 
-int forwardPinL = 6;
-int reversePinL = 5;
-int forwardPinR = 4;
-int reversePinR = 3;
+int forwardPinR = 6;
+int reversePinR = 5;
+int forwardPinL = 4;
+int reversePinL = 3;
 
 int aPinL = 7;
 int bPinL = 8;
 int aPinR = 9;
 int bPinR = 10;
 
-//calculations
-int speedCounter = 0;
+int ledPin = 13;
+//led blinker bool
+bool isLedOn = false;
 
-int speedMax = 0;
+//calculations
+int speedMultiplier = 10;
+
+int speedMax = 250;
 int speedMaxLeft = 0;
 int speedMaxRight = 0;
-int speedLeft = 100;
-int speedRight = 100;
+int speedLeft = 16;
+int speedRight = 14;
+
+//const int speedREV = 0;
+//const int speedFOR = 255;
+const int speedNEU = 128;
 
 int userCommand = 0;
 int sensorReadL, sensorReadFL, sensorReadFR, sensorReadR;
 
+bool switchMove = false;
+
+int timerDelay = 100;
+int delayNormal = 100;
+int delayHalfTurn = 400;
 int inter = 0;
 
 //function declarations
   //mouse movements
-void moveForward(int pinFor, int pinRev, int motSpeed);
-void moveBackwards(int pinFor, int pinRev, int motSpeed);
 void moveBreak(int pinFor, int pinRev);
 
 void turnLeft(int pinForL, int pinRevL, int pinForR, int pinRevR, int motSpeed);
 void turnRight(int pinForL, int pinRevL, int pinForR, int pinRevR, int motSpeed);
 
-void moveWheels(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
+void moveWheelsFor(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
+void moveWheelsRev(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
 
 void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int reversePinL,int forwardPinR,int reversePinR);
   //ir functions
@@ -73,6 +87,8 @@ int findLightInterference(int rL, int rFL, int rFR, int rR, int eL, int eFL, int
 
 void setup() {
   //define pins
+  //led pin
+  pinMode(ledPin, OUTPUT);
   //encoder pins
   pinMode(aPinL, INPUT);
   pinMode(bPinL, INPUT);
@@ -109,13 +125,34 @@ void setup() {
 	  }
   }
   //set bounds
-  
+  //ready to go
+  analogWrite(irEmitPinFR, 255);
+  sensorReadFR = analogRead(irRecievePinFR);
+  digitalWrite(ledPin, HIGH);
+  while(sensorReadFR <= 400){
+    analogWrite(irEmitPinFR, 255);
+    sensorReadFR = analogRead(irRecievePinFR);
+    moveBreak(forwardPinL, reversePinL);
+    moveBreak(forwardPinR, reversePinR);
+  }
 }
 
 void loop() {
+  analogWrite(irEmitPinL, 255);
+  analogWrite(irEmitPinFL, 255);
+  analogWrite(irEmitPinFR, 255);
+  analogWrite(irEmitPinR, 255);
+  if (!isLedOn) {
+    digitalWrite(ledPin, HIGH);
+    isLedOn = true;
+  }
+  else {
+    digitalWrite(ledPin, LOW);
+    isLedOn = false;
+  }
   sensorReadL = analogRead(irRecievePinL) - inter;
   sensorReadFL = analogRead(irRecievePinFL) - inter;
-  sensorReadFR = analogRead(irRecievePinFR) - inter;
+  sensorReadFR = analogRead(irRecievePinFR);
   sensorReadR = analogRead(irRecievePinR) - inter;
   
   if(!goalFound) {
@@ -134,21 +171,32 @@ void loop() {
     speedMaxRight = speedMax;
     speedMaxLeft = speedMax;
   }*/
-  
-  
-  //if (sensorReadFR <= 200) {
-  //  userCommand = USERFOR;
-  /*}
+
+  if(sensorReadFR <= 400) {
+    userCommand = USERFOR;
+    timerDelay = delayNormal;
+    switchMove = false;
+  }
+  else if (sensorReadFR > 400){
+    if(switchMove) {
+      userCommand = USERINV;
+      switchMove = false;
+      timerDelay = delayHalfTurn;
+    }
+    else {
+      userCommand = USERBRK;
+      switchMove = true;
+      timerDelay = delayHalfTurn;
+    }
+  }
   else {
     userCommand = USERBRK;
-  }*/
-  /*Serial.println(userCommand);
-  moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
-  delay(1000);*/
-  userCommand = USERBRK;
+    switchMove = true;
+    timerDelay = delayHalfTurn;
+  }
   Serial.println(userCommand);
   moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
-  delay(1000);
+  delay(timerDelay);
   
 }
 
@@ -164,17 +212,24 @@ void moveBackwards(int pinFor, int pinRev, int motSpeed) {
 }
 
 void moveBreak(int pinFor, int pinRev) {
-    digitalWrite(pinFor, LOW);
-    digitalWrite(pinRev, LOW);
+    analogWrite(pinFor, speedNEU);
+    analogWrite(pinRev, speedNEU);
 }
 
 
 void turnLeft(int pinForL, int pinRevL, int pinForR, int pinRevR, int motSpeed) {
-  moveWheels(0, motSpeed, pinForL, pinRevL, pinForR, pinRevR);
+ // moveWheels(0, motSpeed, pinForL, pinRevL, pinForR, pinRevR);
 }
 
 void turnRight(int pinForL, int pinRevL, int pinForR, int pinRevR, int motSpeed) {
-  moveWheels(motSpeed, 0, pinForL, pinRevL, pinForR, pinRevR);
+  //moveWheels(motSpeed, 0, pinForL, pinRevL, pinForR, pinRevR);
+}
+
+void turnHalfCircle(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
+  analogWrite(pinForL, 0);
+  analogWrite(pinRevL, speedMultiplier * spL);
+  analogWrite(pinForR, 0);
+  analogWrite(pinRevR, speedMultiplier * spR);
 }
 
 void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int reversePinL,int forwardPinR,int reversePinR) {
@@ -185,11 +240,11 @@ void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int 
     break;
     
     case USERFOR:
-    moveWheels(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+    moveWheelsFor(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
     break;
     
     case USERREV:
-    moveWheels(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+    moveWheelsRev(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
     break;
     
     case USERLEF:
@@ -199,6 +254,10 @@ void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int 
     case USERRIG:
     turnRight(forwardPinL, reversePinL, forwardPinR, reversePinR, speedLeft);
     break;
+
+    case USERINV:
+    turnHalfCircle(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+    break;
     
     default:
 	  moveBreak(forwardPinL, reversePinL);
@@ -207,20 +266,18 @@ void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int 
   }
 }
 
-void moveWheels(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
-    if(spL > 0) {
-      moveForward(pinForL, pinRevL, spL);
-    }
-    else {
-      moveBackwards(pinForL, pinRevL, -1 * spL);
-    }
+void moveWheelsFor(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
+  analogWrite(pinForL, speedMultiplier * spL);
+  analogWrite(pinRevL, 0);
+  analogWrite(pinForR, 0);
+  analogWrite(pinRevR, speedMultiplier * spR);
+}
 
-    if(spR > 0) {
-      moveForward(pinForR, pinRevR, spR);
-    }
-    else {
-      moveBackwards(pinForR, pinRevR, -1 * spR);
-    }
+void moveWheelsRev(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
+  analogWrite(pinForL, 0);
+  analogWrite(pinRevL, speedMultiplier * spL);
+  analogWrite(pinForR, speedMultiplier * spR);
+  analogWrite(pinRevR, 0);
 }
 
 void mazeSolving() {
