@@ -197,7 +197,7 @@ void loop() {
     timerDelay = delayHalfTurn;
   }
   Serial.println(userCommand);
-  moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+  moveMouse(userCommand, speedLeftMax, speedRightMax, forwardPinL, reversePinL, forwardPinR, reversePinR);
   delay(timerDelay);
   
 }
