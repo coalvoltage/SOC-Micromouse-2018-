@@ -52,8 +52,8 @@ bool isLedOn = false;
 int speedMultiplier = 10;
 
 int speedMax = 250;
-int speedMaxLeft = speedMax;
-int speedMaxRight = speedMax;
+int speedMaxLeft = speedMax * 0.6;
+int speedMaxRight = speedMax * 0.5;
 double speedLeft = 16;
 double speedRight = 14;
 
@@ -69,7 +69,7 @@ bool switchMove = false;
 int timerDelay = 100;
 int delayNormal = 100;
 int delayHalfTurn = 400;
-int inter = 0;
+int interL, interFL, interFR, interR;
 
 double Kp = 0.5;
 
@@ -85,7 +85,7 @@ void moveWheelsRev(int spL, int spR, int pinForL, int pinRevL, int pinForR, int 
 
 void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int reversePinL,int forwardPinR,int reversePinR);
   //ir functions
-int findLightInterference(int rL, int rFL, int rFR, int rR, int eL, int eFL, int eFR, int eR);
+int findLightInterference(int pinEmit, int pinRecieve);
 
 void setup() {
   //define pins
@@ -116,7 +116,10 @@ void setup() {
   pinMode(irEmitPinR, OUTPUT);
 
   //find interference
-
+  interL = findLightInterference(irEmitPinL, irRecievePinL);
+  interFL = findLightInterference(irEmitPinFL, irRecievePinFL);
+  interFR = findLightInterference(irEmitPinFR, irRecievePinFR);
+  interR = findLightInterference(irEmitPinR, irRecievePinR);
   //setup maze vars
   for(int i = 0; i < sizeX/2; i++) {
 	  for(int j = 0; j < sizeY/2; j++) {
@@ -129,7 +132,7 @@ void setup() {
   //set bounds
   //ready to go
   analogWrite(irEmitPinFR, 255);
-  sensorReadFR = analogRead(irRecievePinFR);
+  sensorReadFR = analogRead(irRecievePinFR) - interFR;
   digitalWrite(ledPin, HIGH);
   while(sensorReadFR <= 400){
     analogWrite(irEmitPinFR, 255);
@@ -140,10 +143,7 @@ void setup() {
 }
 
 void loop() {
-  analogWrite(irEmitPinL, 255);
-  analogWrite(irEmitPinFL, 255);
-  analogWrite(irEmitPinFR, 255);
-  analogWrite(irEmitPinR, 255);
+  //blinks led every 2 loops
   if (!isLedOn) {
     digitalWrite(ledPin, HIGH);
     isLedOn = true;
@@ -152,27 +152,48 @@ void loop() {
     digitalWrite(ledPin, LOW);
     isLedOn = false;
   }
-  sensorReadL = analogRead(irRecievePinL) - inter;
-  sensorReadFL = analogRead(irRecievePinFL) - inter;
-  sensorReadFR = analogRead(irRecievePinFR);
-  sensorReadR = analogRead(irRecievePinR) - inter;
+  
+  //finds interference and reads
+  analogWrite(irEmitPinL, 0);
+  analogWrite(irEmitPinFL, 0);
+  analogWrite(irEmitPinFR, 0);
+  analogWrite(irEmitPinR, 0);
+
+  delay(10);
+  
+  interL = findLightInterference(irEmitPinL, irRecievePinL);
+  interFL = findLightInterference(irEmitPinFL, irRecievePinFL);
+  interFR = findLightInterference(irEmitPinFR, irRecievePinFR);
+  interR = findLightInterference(irEmitPinR, irRecievePinR);
+  
+  analogWrite(irEmitPinL, 255);
+  analogWrite(irEmitPinFL, 255);
+  analogWrite(irEmitPinFR, 255);
+  analogWrite(irEmitPinR, 255);
+
+  delay(10);
+  
+  sensorReadL = analogRead(irRecievePinL) - interL;
+  sensorReadFL = analogRead(irRecievePinFL) - interFL;
+  sensorReadFR = analogRead(irRecievePinFR) - interFR;
+  sensorReadR = analogRead(irRecievePinR) - interR;
   
   if(!goalFound) {
 	  
   }
 
-  if(sensorReadFL > sensorReadFR) {
-    speedMaxLeft = speedMax - (sensorReadL > sensorReadR) * Kp;
+  /*if(sensorReadFL > sensorReadFR) {
+    speedMaxLeft = speedMax - (sensorReadL - sensorReadR) * Kp;
     speedMaxRight = speedMax;
   }
   else if(sensorReadFL < sensorReadFR) {
     speedMaxLeft = speedMax;
-    speedMaxRight = speedMax - (sensorReadL > sensorReadR) * Kp;
+    speedMaxRight = speedMax - (sensorReadL - sensorReadR) * Kp;
   }
   else {
     speedMaxRight = speedMax;
     speedMaxLeft = speedMax;
-  }
+  }*/
 
   if(sensorReadFR <= 400) {
     userCommand = USERFOR;
@@ -197,7 +218,11 @@ void loop() {
     timerDelay = delayHalfTurn;
   }
   Serial.println(userCommand);
-  moveMouse(userCommand, speedLeftMax, speedRightMax, forwardPinL, reversePinL, forwardPinR, reversePinR);
+  moveMouse(userCommand, speedMaxLeft, speedMaxRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+  Serial.print("LeftSpeed: ");
+  Serial.println(speedMaxLeft);
+  Serial.print("RightSpeed: ");
+  Serial.println(speedMaxRight);
   delay(timerDelay);
   
 }
@@ -229,9 +254,9 @@ void turnRight(int pinForL, int pinRevL, int pinForR, int pinRevR, int motSpeed)
 
 void turnHalfCircle(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
   analogWrite(pinForL, 0);
-  analogWrite(pinRevL, speedMultiplier * spL);
+  analogWrite(pinRevL, spL);
   analogWrite(pinForR, 0);
-  analogWrite(pinRevR, speedMultiplier * spR);
+  analogWrite(pinRevR, spR);
 }
 
 void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int reversePinL,int forwardPinR,int reversePinR) {
@@ -269,16 +294,16 @@ void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int 
 }
 
 void moveWheelsFor(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
-  analogWrite(pinForL, speedMultiplier * spL);
+  analogWrite(pinForL, spL);
   analogWrite(pinRevL, 0);
   analogWrite(pinForR, 0);
-  analogWrite(pinRevR, speedMultiplier * spR);
+  analogWrite(pinRevR, spR);
 }
 
 void moveWheelsRev(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
   analogWrite(pinForL, 0);
-  analogWrite(pinRevL, speedMultiplier * spL);
-  analogWrite(pinForR, speedMultiplier * spR);
+  analogWrite(pinRevL, spL);
+  analogWrite(pinForR, spR);
   analogWrite(pinRevR, 0);
 }
 
