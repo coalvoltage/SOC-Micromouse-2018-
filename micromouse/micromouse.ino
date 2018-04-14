@@ -52,10 +52,10 @@ bool isLedOn = false;
 int speedMultiplier = 10;
 
 int speedMax = 250;
-int speedMaxLeft = 0;
-int speedMaxRight = 0;
-int speedLeft = 16;
-int speedRight = 14;
+int speedMaxLeft = speedMax;
+int speedMaxRight = speedMax;
+double speedLeft = 16;
+double speedRight = 14;
 
 //const int speedREV = 0;
 //const int speedFOR = 255;
@@ -70,6 +70,8 @@ int timerDelay = 100;
 int delayNormal = 100;
 int delayHalfTurn = 400;
 int inter = 0;
+
+double Kp = 0.5;
 
 //function declarations
   //mouse movements
@@ -159,18 +161,18 @@ void loop() {
 	  
   }
 
-  /*if(sensorReadFL > sensorReadFR * 1.10) {
-    speedMaxLeft = speedMax * 0.9;
+  if(sensorReadFL > sensorReadFR) {
+    speedMaxLeft = speedMax - (sensorReadL > sensorReadR) * Kp;
     speedMaxRight = speedMax;
   }
-  else if(sensorReadFL * 1.10 < sensorReadFR) {
+  else if(sensorReadFL < sensorReadFR) {
     speedMaxLeft = speedMax;
-    speedMaxRight = speedMax * 0.9;
+    speedMaxRight = speedMax - (sensorReadL > sensorReadR) * Kp;
   }
   else {
     speedMaxRight = speedMax;
     speedMaxLeft = speedMax;
-  }*/
+  }
 
   if(sensorReadFR <= 400) {
     userCommand = USERFOR;
