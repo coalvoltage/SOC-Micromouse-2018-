@@ -52,8 +52,8 @@ bool isLedOn = false;
 int speedMultiplier = 10;
 
 int speedMax = 250;
-int speedMaxLeft = speedMax * 0.6;
-int speedMaxRight = speedMax * 0.5;
+int speedMaxLeft = 200;
+int speedMaxRight = 130;
 double speedLeft = 16;
 double speedRight = 14;
 
@@ -61,7 +61,7 @@ double speedRight = 14;
 //const int speedFOR = 255;
 const int speedNEU = 128;
 
-int userCommand = 0;
+int userCommand = USERBRK;
 int sensorReadL, sensorReadFL, sensorReadFR, sensorReadR;
 
 bool switchMove = false;
@@ -73,16 +73,28 @@ int interL, interFL, interFR, interR;
 
 double Kp = 0.5;
 //interupts
-volatile long totalRA = 0;
+volatile long countLRA = 0;
+volatile long countRRA = 0;
+
+volatile long countLRASaved = 0;
+volatile long countRRASaved = 0;
+long countLRABound = 500;
 
 //timer values
 unsigned long blinkerMillis = 0;
 unsigned long irMillis = 0;
+unsigned long infoMillis = 0;
+unsigned long actionMillis = 0;
 unsigned long currentMillis;
 
 const unsigned long blinkerDelay = 1000;
+
 const unsigned long irDelay = 10;
 bool areIREmittersOn = true;
+
+const unsigned long infoDelay = 1000;
+
+const unsigned long actionDelay = 10;
 
 //function declarations
   //mouse movements
@@ -98,9 +110,11 @@ void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int 
   //ir functions
 int findLightInterference(int pinEmit, int pinRecieve);
 
-void countRA() {
-  totalRA++;
-}
+void leftEncoderEvent();
+void rightEncoderEvent();
+
+//debug values
+char keyboardInput = '0';
 
 void setup() {
   //define pins
@@ -144,6 +158,9 @@ void setup() {
       mazeDist[sizeX - i - 1][j] = sizeX - i - j - 2;
 	  }
   }
+  
+  //debug keyboard
+  
   //set bounds
   //ready to go
   analogWrite(irEmitPinFR, 255);
@@ -157,7 +174,8 @@ void setup() {
   }
 
   //attachInterupts
-  attachInterrupt(digitalPinToInterrupt(aPinL),countRA, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(aPinL),leftEncoderEvent, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(aPinR),rightEncoderEvent, CHANGE);
 }
 
 void loop() {
@@ -174,6 +192,21 @@ void loop() {
     }
     blinkerMillis = currentMillis;
   }
+  
+  if(Serial.available() > 0) {
+    keyboardInput = Serial.read();
+    if(keyboardInput == 'w') {
+      userCommand = USERFOR;
+    }
+    else if(keyboardInput == 's') {
+      userCommand = USERREV;
+    }
+    else if(keyboardInput == 'b') {
+      userCommand = USERBRK;
+    }
+    countLRASaved = countLRA;
+  }
+  
   //finds interference and reads
   if(currentMillis - irMillis >= irDelay) {
     if(areIREmittersOn) {
@@ -186,7 +219,7 @@ void loop() {
       interFL = findLightInterference(irEmitPinFL, irRecievePinFL);
       interFR = findLightInterference(irEmitPinFR, irRecievePinFR);
       interR = findLightInterference(irEmitPinR, irRecievePinR);
-      areIREmitters = false;
+      areIREmittersOn = false;
     }
     else {
       analogWrite(irEmitPinL, 255);
@@ -199,19 +232,26 @@ void loop() {
       sensorReadFR = analogRead(irRecievePinFR) - interFR;
       sensorReadR = analogRead(irRecievePinR) - interR;
 
-      areIREmitters = true;
+      areIREmittersOn = true;
     }
     irMillis = currentMillis;
   }
-  Serial.println(userCommand);
+  if(countLRA - countLRASaved >= countLRABound) {
+    userCommand = USERBRK;
+  }
   moveMouse(userCommand, speedMaxLeft, speedMaxRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
-  if(currentMillis - blinkerMillis >= blinkerDelay
-  Serial.print("LeftSpeed: ");
-  Serial.println(speedMaxLeft);
-  Serial.print("RightSpeed: ");
-  Serial.println(speedMaxRight);
-  Serial.print("Ticks: ");
-  Serial.println(totalRA);
+  actionMillis = currentMillis;
+  if(currentMillis - infoMillis >= infoDelay) {
+    Serial.print("LeftSpeed: ");
+    Serial.println(speedMaxLeft);
+    Serial.print("RightSpeed: ");
+    Serial.println(speedMaxRight);
+    Serial.print("TicksL: ");
+    Serial.println(countLRA);
+    Serial.print("TicksR: ");
+    Serial.println(countRRA);
+    infoMillis = currentMillis;
+  }
 }
 
 //function definitions
@@ -325,4 +365,42 @@ int findLightInterference(int pinEmit, int pinRecieve) {
   minInter = analogRead(pinRecieve);
   
 	return minInter;
+}
+
+void leftEncoderEvent() {
+  if (digitalRead(aPinL) == HIGH) {
+    if (digitalRead(bPinL) == LOW) {
+      countLRA--;
+    }
+    else {
+      countLRA++;
+    }
+  }
+  else {
+    if(digitalRead(bPinL) == LOW) {
+      countLRA++;
+    }
+    else {
+      countLRA--;
+    }
+  }
+}
+
+void rightEncoderEvent() {
+  if (digitalRead(aPinR) == HIGH) {
+    if (digitalRead(bPinR) == LOW) {
+      countRRA--;
+    }
+    else {
+      countRRA++;
+    }
+  }
+  else {
+    if(digitalRead(bPinR) == LOW) {
+      countRRA++;
+    }
+    else {
+      countRRA--;
+    }
+  }
 }
