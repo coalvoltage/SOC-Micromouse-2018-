@@ -72,6 +72,17 @@ int delayHalfTurn = 400;
 int interL, interFL, interFR, interR;
 
 double Kp = 0.5;
+//interupts
+volatile long totalRA = 0;
+
+//timer values
+unsigned long blinkerMillis = 0;
+unsigned long irMillis = 0;
+unsigned long currentMillis;
+
+const unsigned long blinkerDelay = 1000;
+const unsigned long irDelay = 10;
+bool areIREmittersOn = true;
 
 //function declarations
   //mouse movements
@@ -86,6 +97,10 @@ void moveWheelsRev(int spL, int spR, int pinForL, int pinRevL, int pinForR, int 
 void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int reversePinL,int forwardPinR,int reversePinR);
   //ir functions
 int findLightInterference(int pinEmit, int pinRecieve);
+
+void countRA() {
+  totalRA++;
+}
 
 void setup() {
   //define pins
@@ -140,91 +155,63 @@ void setup() {
     moveBreak(forwardPinL, reversePinL);
     moveBreak(forwardPinR, reversePinR);
   }
+
+  //attachInterupts
+  attachInterrupt(digitalPinToInterrupt(aPinL),countRA, CHANGE);
 }
 
 void loop() {
   //blinks led every 2 loops
-  if (!isLedOn) {
-    digitalWrite(ledPin, HIGH);
-    isLedOn = true;
-  }
-  else {
-    digitalWrite(ledPin, LOW);
-    isLedOn = false;
-  }
-  
-  //finds interference and reads
-  analogWrite(irEmitPinL, 0);
-  analogWrite(irEmitPinFL, 0);
-  analogWrite(irEmitPinFR, 0);
-  analogWrite(irEmitPinR, 0);
-
-  delay(10);
-  
-  interL = findLightInterference(irEmitPinL, irRecievePinL);
-  interFL = findLightInterference(irEmitPinFL, irRecievePinFL);
-  interFR = findLightInterference(irEmitPinFR, irRecievePinFR);
-  interR = findLightInterference(irEmitPinR, irRecievePinR);
-  
-  analogWrite(irEmitPinL, 255);
-  analogWrite(irEmitPinFL, 255);
-  analogWrite(irEmitPinFR, 255);
-  analogWrite(irEmitPinR, 255);
-
-  delay(10);
-  
-  sensorReadL = analogRead(irRecievePinL) - interL;
-  sensorReadFL = analogRead(irRecievePinFL) - interFL;
-  sensorReadFR = analogRead(irRecievePinFR) - interFR;
-  sensorReadR = analogRead(irRecievePinR) - interR;
-  
-  if(!goalFound) {
-	  
-  }
-
-  /*if(sensorReadFL > sensorReadFR) {
-    speedMaxLeft = speedMax - (sensorReadL - sensorReadR) * Kp;
-    speedMaxRight = speedMax;
-  }
-  else if(sensorReadFL < sensorReadFR) {
-    speedMaxLeft = speedMax;
-    speedMaxRight = speedMax - (sensorReadL - sensorReadR) * Kp;
-  }
-  else {
-    speedMaxRight = speedMax;
-    speedMaxLeft = speedMax;
-  }*/
-
-  if(sensorReadFR <= 400) {
-    userCommand = USERFOR;
-    timerDelay = delayNormal;
-    switchMove = false;
-  }
-  else if (sensorReadFR > 400){
-    if(switchMove) {
-      userCommand = USERINV;
-      switchMove = false;
-      timerDelay = delayHalfTurn;
+  currentMillis = millis();
+  if(currentMillis - blinkerMillis >= blinkerDelay) {
+    if (!isLedOn) {
+      digitalWrite(ledPin, HIGH);
+      isLedOn = true;
     }
     else {
-      userCommand = USERBRK;
-      switchMove = true;
-      timerDelay = delayHalfTurn;
+      digitalWrite(ledPin, LOW);
+      isLedOn = false;
     }
+    blinkerMillis = currentMillis;
   }
-  else {
-    userCommand = USERBRK;
-    switchMove = true;
-    timerDelay = delayHalfTurn;
+  //finds interference and reads
+  if(currentMillis - irMillis >= irDelay) {
+    if(areIREmittersOn) {
+      analogWrite(irEmitPinL, 0);
+      analogWrite(irEmitPinFL, 0);
+      analogWrite(irEmitPinFR, 0);
+      analogWrite(irEmitPinR, 0);
+      
+      interL = findLightInterference(irEmitPinL, irRecievePinL);
+      interFL = findLightInterference(irEmitPinFL, irRecievePinFL);
+      interFR = findLightInterference(irEmitPinFR, irRecievePinFR);
+      interR = findLightInterference(irEmitPinR, irRecievePinR);
+      areIREmitters = false;
+    }
+    else {
+      analogWrite(irEmitPinL, 255);
+      analogWrite(irEmitPinFL, 255);
+      analogWrite(irEmitPinFR, 255);
+      analogWrite(irEmitPinR, 255);
+      
+      sensorReadL = analogRead(irRecievePinL) - interL;
+      sensorReadFL = analogRead(irRecievePinFL) - interFL;
+      sensorReadFR = analogRead(irRecievePinFR) - interFR;
+      sensorReadR = analogRead(irRecievePinR) - interR;
+
+      areIREmitters = true;
+    }
+    irMillis = currentMillis;
   }
   Serial.println(userCommand);
   moveMouse(userCommand, speedMaxLeft, speedMaxRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+  if(currentMillis - blinkerMillis >= blinkerDelay
   Serial.print("LeftSpeed: ");
   Serial.println(speedMaxLeft);
   Serial.print("RightSpeed: ");
   Serial.println(speedMaxRight);
-  delay(timerDelay);
-  
+  Serial.print("Ticks: ");
+  Serial.println(totalRA);
 }
 
 //function definitions
