@@ -52,8 +52,8 @@ bool isLedOn = false;
 int speedMultiplier = 10;
 
 int speedMax = 250;
-int speedMaxLeft = speedMax * 0.6;
-int speedMaxRight = speedMax * 0.5;
+int speedMaxLeft = 200;
+int speedMaxRight = 130;
 double speedLeft = 16;
 double speedRight = 14;
 
@@ -61,7 +61,7 @@ double speedRight = 14;
 //const int speedFOR = 255;
 const int speedNEU = 128;
 
-int userCommand = 0;
+int userCommand = USERBRK;
 int sensorReadL, sensorReadFL, sensorReadFR, sensorReadR;
 
 bool switchMove = false;
@@ -72,6 +72,29 @@ int delayHalfTurn = 400;
 int interL, interFL, interFR, interR;
 
 double Kp = 0.5;
+//interupts
+volatile long countLRA = 0;
+volatile long countRRA = 0;
+
+volatile long countLRASaved = 0;
+volatile long countRRASaved = 0;
+long countLRABound = 500;
+
+//timer values
+unsigned long blinkerMillis = 0;
+unsigned long irMillis = 0;
+unsigned long infoMillis = 0;
+unsigned long actionMillis = 0;
+unsigned long currentMillis;
+
+const unsigned long blinkerDelay = 1000;
+
+const unsigned long irDelay = 10;
+bool areIREmittersOn = true;
+
+const unsigned long infoDelay = 1000;
+
+const unsigned long actionDelay = 10;
 
 //function declarations
   //mouse movements
@@ -86,6 +109,12 @@ void moveWheelsRev(int spL, int spR, int pinForL, int pinRevL, int pinForR, int 
 void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int reversePinL,int forwardPinR,int reversePinR);
   //ir functions
 int findLightInterference(int pinEmit, int pinRecieve);
+
+void leftEncoderEvent();
+void rightEncoderEvent();
+
+//debug values
+char keyboardInput = '0';
 
 void setup() {
   //define pins
@@ -129,6 +158,9 @@ void setup() {
       mazeDist[sizeX - i - 1][j] = sizeX - i - j - 2;
 	  }
   }
+  
+  //debug keyboard
+  
   //set bounds
   //ready to go
   analogWrite(irEmitPinFR, 255);
@@ -140,91 +172,86 @@ void setup() {
     moveBreak(forwardPinL, reversePinL);
     moveBreak(forwardPinR, reversePinR);
   }
+
+  //attachInterupts
+  attachInterrupt(digitalPinToInterrupt(aPinL),leftEncoderEvent, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(aPinR),rightEncoderEvent, CHANGE);
 }
 
 void loop() {
   //blinks led every 2 loops
-  if (!isLedOn) {
-    digitalWrite(ledPin, HIGH);
-    isLedOn = true;
+  currentMillis = millis();
+  if(currentMillis - blinkerMillis >= blinkerDelay) {
+    if (!isLedOn) {
+      digitalWrite(ledPin, HIGH);
+      isLedOn = true;
+    }
+    else {
+      digitalWrite(ledPin, LOW);
+      isLedOn = false;
+    }
+    blinkerMillis = currentMillis;
   }
-  else {
-    digitalWrite(ledPin, LOW);
-    isLedOn = false;
+  
+  if(Serial.available() > 0) {
+    keyboardInput = Serial.read();
+    if(keyboardInput == 'w') {
+      userCommand = USERFOR;
+    }
+    else if(keyboardInput == 's') {
+      userCommand = USERREV;
+    }
+    else if(keyboardInput == 'b') {
+      userCommand = USERBRK;
+    }
+    countLRASaved = countLRA;
   }
   
   //finds interference and reads
-  analogWrite(irEmitPinL, 0);
-  analogWrite(irEmitPinFL, 0);
-  analogWrite(irEmitPinFR, 0);
-  analogWrite(irEmitPinR, 0);
-
-  delay(10);
-  
-  interL = findLightInterference(irEmitPinL, irRecievePinL);
-  interFL = findLightInterference(irEmitPinFL, irRecievePinFL);
-  interFR = findLightInterference(irEmitPinFR, irRecievePinFR);
-  interR = findLightInterference(irEmitPinR, irRecievePinR);
-  
-  analogWrite(irEmitPinL, 255);
-  analogWrite(irEmitPinFL, 255);
-  analogWrite(irEmitPinFR, 255);
-  analogWrite(irEmitPinR, 255);
-
-  delay(10);
-  
-  sensorReadL = analogRead(irRecievePinL) - interL;
-  sensorReadFL = analogRead(irRecievePinFL) - interFL;
-  sensorReadFR = analogRead(irRecievePinFR) - interFR;
-  sensorReadR = analogRead(irRecievePinR) - interR;
-  
-  if(!goalFound) {
-	  
-  }
-
-  /*if(sensorReadFL > sensorReadFR) {
-    speedMaxLeft = speedMax - (sensorReadL - sensorReadR) * Kp;
-    speedMaxRight = speedMax;
-  }
-  else if(sensorReadFL < sensorReadFR) {
-    speedMaxLeft = speedMax;
-    speedMaxRight = speedMax - (sensorReadL - sensorReadR) * Kp;
-  }
-  else {
-    speedMaxRight = speedMax;
-    speedMaxLeft = speedMax;
-  }*/
-
-  if(sensorReadFR <= 400) {
-    userCommand = USERFOR;
-    timerDelay = delayNormal;
-    switchMove = false;
-  }
-  else if (sensorReadFR > 400){
-    if(switchMove) {
-      userCommand = USERINV;
-      switchMove = false;
-      timerDelay = delayHalfTurn;
+  if(currentMillis - irMillis >= irDelay) {
+    if(areIREmittersOn) {
+      analogWrite(irEmitPinL, 0);
+      analogWrite(irEmitPinFL, 0);
+      analogWrite(irEmitPinFR, 0);
+      analogWrite(irEmitPinR, 0);
+      
+      interL = findLightInterference(irEmitPinL, irRecievePinL);
+      interFL = findLightInterference(irEmitPinFL, irRecievePinFL);
+      interFR = findLightInterference(irEmitPinFR, irRecievePinFR);
+      interR = findLightInterference(irEmitPinR, irRecievePinR);
+      areIREmittersOn = false;
     }
     else {
-      userCommand = USERBRK;
-      switchMove = true;
-      timerDelay = delayHalfTurn;
+      analogWrite(irEmitPinL, 255);
+      analogWrite(irEmitPinFL, 255);
+      analogWrite(irEmitPinFR, 255);
+      analogWrite(irEmitPinR, 255);
+      
+      sensorReadL = analogRead(irRecievePinL) - interL;
+      sensorReadFL = analogRead(irRecievePinFL) - interFL;
+      sensorReadFR = analogRead(irRecievePinFR) - interFR;
+      sensorReadR = analogRead(irRecievePinR) - interR;
+
+      areIREmittersOn = true;
     }
+    irMillis = currentMillis;
   }
-  else {
+  if(countLRA - countLRASaved >= countLRABound) {
     userCommand = USERBRK;
-    switchMove = true;
-    timerDelay = delayHalfTurn;
   }
-  Serial.println(userCommand);
   moveMouse(userCommand, speedMaxLeft, speedMaxRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
-  Serial.print("LeftSpeed: ");
-  Serial.println(speedMaxLeft);
-  Serial.print("RightSpeed: ");
-  Serial.println(speedMaxRight);
-  delay(timerDelay);
-  
+  actionMillis = currentMillis;
+  if(currentMillis - infoMillis >= infoDelay) {
+    Serial.print("LeftSpeed: ");
+    Serial.println(speedMaxLeft);
+    Serial.print("RightSpeed: ");
+    Serial.println(speedMaxRight);
+    Serial.print("TicksL: ");
+    Serial.println(countLRA);
+    Serial.print("TicksR: ");
+    Serial.println(countRRA);
+    infoMillis = currentMillis;
+  }
 }
 
 //function definitions
@@ -338,4 +365,42 @@ int findLightInterference(int pinEmit, int pinRecieve) {
   minInter = analogRead(pinRecieve);
   
 	return minInter;
+}
+
+void leftEncoderEvent() {
+  if (digitalRead(aPinL) == HIGH) {
+    if (digitalRead(bPinL) == LOW) {
+      countLRA--;
+    }
+    else {
+      countLRA++;
+    }
+  }
+  else {
+    if(digitalRead(bPinL) == LOW) {
+      countLRA++;
+    }
+    else {
+      countLRA--;
+    }
+  }
+}
+
+void rightEncoderEvent() {
+  if (digitalRead(aPinR) == HIGH) {
+    if (digitalRead(bPinR) == LOW) {
+      countRRA--;
+    }
+    else {
+      countRRA++;
+    }
+  }
+  else {
+    if(digitalRead(bPinR) == LOW) {
+      countRRA++;
+    }
+    else {
+      countRRA--;
+    }
+  }
 }
