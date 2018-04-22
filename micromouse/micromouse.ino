@@ -53,7 +53,7 @@ int speedMultiplier = 10;
 
 int speedMax = 250;
 int speedMaxLeft = 200;
-int speedMaxRight = 130;
+int speedMaxRight = 200;
 double speedLeft = 16;
 double speedRight = 14;
 
@@ -72,13 +72,17 @@ int delayHalfTurn = 400;
 int interL, interFL, interFR, interR;
 
 double Kp = 0.5;
+
+const long countStepBound = 500;
+const long countTurnBound = 500;
 //interupts
 volatile long countLRA = 0;
 volatile long countRRA = 0;
 
 volatile long countLRASaved = 0;
 volatile long countRRASaved = 0;
-long countLRABound = 500;
+long currentLRABound = 500;
+long currentRRABound = 500;
 
 //timer values
 unsigned long blinkerMillis = 0;
@@ -100,8 +104,8 @@ const unsigned long actionDelay = 10;
   //mouse movements
 void moveBreak(int pinFor, int pinRev);
 
-void turnLeft(int pinForL, int pinRevL, int pinForR, int pinRevR, int motSpeed);
-void turnRight(int pinForL, int pinRevL, int pinForR, int pinRevR, int motSpeed);
+void turnLeft(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
+void turnRight(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
 
 void moveWheelsFor(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
 void moveWheelsRev(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
@@ -117,6 +121,7 @@ void rightEncoderEvent();
 char keyboardInput = '0';
 
 void setup() {
+  Serial.begin(9600);
   //define pins
   //led pin
   pinMode(ledPin, OUTPUT);
@@ -158,7 +163,6 @@ void setup() {
       mazeDist[sizeX - i - 1][j] = sizeX - i - j - 2;
 	  }
   }
-  
   //debug keyboard
   
   //set bounds
@@ -204,6 +208,12 @@ void loop() {
     else if(keyboardInput == 'b') {
       userCommand = USERBRK;
     }
+    else if(keyboardInput == 'a') {
+      userCommand = USERLEF;
+    }
+    else if(keyboardInput == 'd') {
+      userCommand = USERRIG;
+    }
     countLRASaved = countLRA;
   }
   
@@ -236,7 +246,7 @@ void loop() {
     }
     irMillis = currentMillis;
   }
-  if(countLRA - countLRASaved >= countLRABound) {
+  if(countLRA - countLRASaved >= currentLRABound || countLRASaved - countLRA >= currentLRABound) {
     userCommand = USERBRK;
   }
   moveMouse(userCommand, speedMaxLeft, speedMaxRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
@@ -271,12 +281,18 @@ void moveBreak(int pinFor, int pinRev) {
 }
 
 
-void turnLeft(int pinForL, int pinRevL, int pinForR, int pinRevR, int motSpeed) {
- // moveWheels(0, motSpeed, pinForL, pinRevL, pinForR, pinRevR);
+void turnLeft(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
+  analogWrite(pinForL, 0);
+  analogWrite(pinRevL, spL);
+  analogWrite(pinForR, 0);
+  analogWrite(pinRevR, spR);
 }
 
-void turnRight(int pinForL, int pinRevL, int pinForR, int pinRevR, int motSpeed) {
-  //moveWheels(motSpeed, 0, pinForL, pinRevL, pinForR, pinRevR);
+void turnRight(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
+  analogWrite(pinForL, spL);
+  analogWrite(pinRevL, 0);
+  analogWrite(pinForR, spR);
+  analogWrite(pinRevR, 0);
 }
 
 void turnHalfCircle(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
@@ -302,11 +318,11 @@ void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int 
     break;
     
     case USERLEF:
-    turnLeft(forwardPinL, reversePinL, forwardPinR, reversePinR, speedRight);
+    turnLeft(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
     break;
     
     case USERRIG:
-    turnRight(forwardPinL, reversePinL, forwardPinR, reversePinR, speedLeft);
+    turnRight(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
     break;
 
     case USERINV:
