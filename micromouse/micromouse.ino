@@ -84,6 +84,8 @@ volatile long countRRASaved = 0;
 long currentLRABound = 500;
 long currentRRABound = 500;
 
+long currentTurnBound = 175;
+
 //timer values
 unsigned long blinkerMillis = 0;
 unsigned long irMillis = 0;
@@ -211,6 +213,9 @@ void loop() {
     else if(keyboardInput == 'a') {
       userCommand = USERLEF;
     }
+    else if(keyboardInput == 'x') {
+      userCommand = USERINV;
+    }
     else if(keyboardInput == 'd') {
       userCommand = USERRIG;
     }
@@ -220,6 +225,11 @@ void loop() {
   //finds interference and reads
   if(currentMillis - irMillis >= irDelay) {
     if(areIREmittersOn) {
+      sensorReadL = analogRead(irRecievePinL) - interL;
+      sensorReadFL = analogRead(irRecievePinFL) - interFL;
+      sensorReadFR = analogRead(irRecievePinFR) - interFR;
+      sensorReadR = analogRead(irRecievePinR) - interR;
+      
       analogWrite(irEmitPinL, 0);
       analogWrite(irEmitPinFL, 0);
       analogWrite(irEmitPinFR, 0);
@@ -229,6 +239,12 @@ void loop() {
       interFL = findLightInterference(irEmitPinFL, irRecievePinFL);
       interFR = findLightInterference(irEmitPinFR, irRecievePinFR);
       interR = findLightInterference(irEmitPinR, irRecievePinR);
+
+      sensorReadL = map(sensorReadL, 60, 1000, 0, 255);
+      sensorReadFL = map(sensorReadFL, 110, 1000, 0, 255);
+      sensorReadFR = map(sensorReadFR, 110, 1000, 0, 255);
+      sensorReadR = map(sensorReadR, 60, 1000, 0, 255);
+      
       areIREmittersOn = false;
     }
     else {
@@ -236,19 +252,30 @@ void loop() {
       analogWrite(irEmitPinFL, 255);
       analogWrite(irEmitPinFR, 255);
       analogWrite(irEmitPinR, 255);
-      
-      sensorReadL = analogRead(irRecievePinL) - interL;
-      sensorReadFL = analogRead(irRecievePinFL) - interFL;
-      sensorReadFR = analogRead(irRecievePinFR) - interFR;
-      sensorReadR = analogRead(irRecievePinR) - interR;
 
       areIREmittersOn = true;
     }
     irMillis = currentMillis;
   }
-  if(countLRA - countLRASaved >= currentLRABound || countLRASaved - countLRA >= currentLRABound) {
+
+  if(sensorReadL > sensorReadR) {
+    //
+  }
+  else {
+    //
+  }
+
+  //breaks after a cell or action is completed
+  if((countLRA - countLRASaved >= currentLRABound || countLRASaved - countLRA >= currentLRABound) && (userCommand == USERFOR || userCommand == USERREV)){
     userCommand = USERBRK;
   }
+  else if((countLRA - countLRASaved >= currentTurnBound || countLRASaved - countLRA >= currentTurnBound) && (userCommand == USERLEF || userCommand == USERRIG)){
+    userCommand = USERBRK;
+  }
+  else if(sensorReadFR >= 40 || sensorReadFL >= 40){
+    userCommand = USERBRK;
+  }
+  
   moveMouse(userCommand, speedMaxLeft, speedMaxRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
   actionMillis = currentMillis;
   if(currentMillis - infoMillis >= infoDelay) {
@@ -260,6 +287,22 @@ void loop() {
     Serial.println(countLRA);
     Serial.print("TicksR: ");
     Serial.println(countRRA);
+    Serial.print("Right: ");
+    Serial.println(sensorReadR);
+    Serial.print("Interference: ");
+    Serial.println(interR);
+    Serial.print("RightTop: ");
+    Serial.println(sensorReadFR);
+    Serial.print("Interference: ");
+    Serial.println(interFR);
+    Serial.print("LeftTop: ");
+    Serial.println(sensorReadFL);
+    Serial.print("Interference: ");
+    Serial.println(interFL);
+    Serial.print("Left: ");
+    Serial.println(sensorReadL);
+    Serial.print("Interference: ");
+    Serial.println(interL);
     infoMillis = currentMillis;
   }
 }
