@@ -39,7 +39,6 @@ int checkSize = 0;
 bool goalFound = false;
 
 //pins
-{
 int irRecievePinL = A5;
 int irRecievePinFL = A4;
 int irRecievePinFR = A3;
@@ -83,6 +82,7 @@ const int sensorReadCorrectionBoundL = 30;
 const int sensorReadCorrectionBoundR = 30;
 
 bool switchMove = false;
+bool actionFinished = true;
 
 
 int interL, interFL, interFR, interR;
@@ -123,7 +123,7 @@ bool areIREmittersOn = true;
 const unsigned long infoDelay = 1000;
 const unsigned long correctionDelay = 10;
 const unsigned long actionDelay = 10;
-
+const unsigned long breakDelay = 1000;
 //function declarations
   //mouse movements
 void moveBreak(int pinFor, int pinRev);
@@ -142,9 +142,9 @@ void rightEncoderEvent();
 
 //debug values
 char keyboardInput = '0';
-}
+
 void setup() {
-  Serial.begin(9600);
+  Serial1.begin(9600);
   //define pins
   //led pin
   pinMode(ledPin, OUTPUT);
@@ -227,8 +227,8 @@ void loop() {
     blinkerMillis = currentMillis;
   }
   
-  if(Serial.available() > 0) {
-    keyboardInput = Serial.read();
+  if(Serial1.available() > 0) {
+    keyboardInput = Serial1.read();
     if(keyboardInput == 'w') {
       userCommand = USERFOR;
     }
@@ -250,7 +250,7 @@ void loop() {
     countLRASaved = countLRA;
   }
   
-  if(locationX != goalx && locationY != goaly) {
+  /*if(locationX != goalx && locationY != goaly) {
     checkQueue[0] = mazeDist[locationX][locationY];
     checkSize = 1;
     while(checkSize != 0) {
@@ -262,7 +262,7 @@ void loop() {
   }
   else if(locationX == goalx && locationY == goaly) {
     
-  }
+  }*/
   //finds interference and reads
   if(currentMillis - irMillis >= irDelay) {
     if(areIREmittersOn) {
@@ -270,8 +270,8 @@ void loop() {
       sensorReadFL = analogRead(irRecievePinFL) - interFL;
       sensorReadFR = analogRead(irRecievePinFR) - interFR;
       sensorReadR = analogRead(irRecievePinR) - interR;
-
-      sensorReadL = map(sensorReadL, 60, 1000, 0, 500);
+66
+      sensorReadL = map(sensorReadL, 60, 2500, 0, 500);
       sensorReadFL = map(sensorReadFL, 110, 1000, 0, 500);
       sensorReadFR = map(sensorReadFR, 110, 1000, 0, 500);
       sensorReadR = map(sensorReadR, 60, 1000, 0, 500);
@@ -313,44 +313,71 @@ void loop() {
   }
   
   //breaks after a cell or action is completed
-  if((countLRA - countLRASaved >= currentLRABound || countLRASaved - countLRA >= currentLRABound) && (userCommand == USERFOR || userCommand == USERREV)){
-    userCommand = USERBRK;
-    
+  if(!actionFinished) {
+    if(userCommand == USERLEF) {
+      if(countLRASaved - countLRA >= currentTurnBound || countLRA- countLRASaved >= currentTurnBound) {
+        actionFinished = true;
+      }
+    }
+    else if(userCommand == USERFOR) {
+      if(countLRASaved - countLRA >= currentTurnBound || countLRA- countLRASaved >= currentLRABound) {
+        actionFinished = true;
+      }
+    }
+    else if(userCommand == USERBRK) {
+      if(currentMillis - actionMillis >= breakDelay) {
+        actionFinished = true;
+      }
+    }
   }
-  else if((countLRA - countLRASaved >= currentTurnBound || countLRASaved - countLRA >= currentTurnBound) && (userCommand == USERLEF || userCommand == USERRIG)){
-    userCommand = USERBRK;
+  else if(switchMove) {
+    if(sensorReadFL >= 40 || sensorReadFR >= 40) {
+      userCommand = USERLEF;
+      switchMove = false;
+      actionFinished = false;
+      countLRASaved = countLRA;
+    }
+    else {
+      userCommand = USERFOR;
+      switchMove = false;
+      actionFinished = false;
+      countLRASaved = countLRA;
+    }
   }
-  else if(sensorReadFR >= 40 || sensorReadFL >= 40){
+  else {
     userCommand = USERBRK;
+    switchMove = true;
+    actionFinished = false;
+    actionMillis = currentMillis;
   }
-  
+  userCommand = USERBRK;
   moveMouse(userCommand, speedMaxLeft, speedMaxRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
-  actionMillis = currentMillis;
+  
   if(currentMillis - infoMillis >= infoDelay) {
-    Serial.print("LeftSpeed: ");
-    Serial.println(speedMaxLeft);
-    Serial.print("RightSpeed: ");
-    Serial.println(speedMaxRight);
-    Serial.print("TicksL: ");
-    Serial.println(countLRA);
-    Serial.print("TicksR: ");
-    Serial.println(countRRA);
-    Serial.print("Right: ");
-    Serial.println(sensorReadR);
-    Serial.print("Interference: ");
-    Serial.println(interR);
-    Serial.print("RightTop: ");
-    Serial.println(sensorReadFR);
-    Serial.print("Interference: ");
-    Serial.println(interFR);
-    Serial.print("LeftTop: ");
-    Serial.println(sensorReadFL);
-    Serial.print("Interference: ");
-    Serial.println(interFL);
-    Serial.print("Left: ");
-    Serial.println(sensorReadL);
-    Serial.print("Interference: ");
-    Serial.println(interL);
+    Serial1.print("LeftSpeed: ");
+    Serial1.println(speedLeft);
+    Serial1.print("RightSpeed: ");
+    Serial1.println(speedRight);
+    Serial1.print("TicksL: ");
+    Serial1.println(countLRA);
+    Serial1.print("TicksR: ");
+    Serial1.println(countRRA);
+    Serial1.print("Right: ");
+    Serial1.println(sensorReadR);
+    Serial1.print("Interference: ");
+    Serial1.println(interR);
+    Serial1.print("RightTop: ");
+    Serial1.println(sensorReadFR);
+    Serial1.print("Interference: ");
+    Serial1.println(interFR);
+    Serial1.print("LeftTop: ");
+    Serial1.println(sensorReadFL);
+    Serial1.print("Interference: ");
+    Serial1.println(interFL);
+    Serial1.print("Left: ");
+    Serial1.println(sensorReadL);
+    Serial1.print("Interference: ");
+    Serial1.println(interL);
     infoMillis = currentMillis;
   }
 }
