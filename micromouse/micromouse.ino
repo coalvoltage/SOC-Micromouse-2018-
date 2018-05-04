@@ -22,6 +22,7 @@ bool wallRight, wallBack, wallLeft = true;
 int locationX = 0;
 int locationY = 0;
 
+bool settingVars = true;
 //maze specs
 int sizeX = SIZEX;
 int sizeY = SIZEY;
@@ -70,7 +71,9 @@ int speedMaxLeft = 200;
 int speedMaxRight = 200;
 int speedLeft = 200;
 int speedRight = 200;
-
+//mapped values
+int mappedL = 1000;
+int mappedR = 1000;
 //const int speedREV = 0;
 //const int speedFOR = 255;
 const int speedNEU = 128;
@@ -87,7 +90,7 @@ bool actionFinished = true;
 
 int interL, interFL, interFR, interR;
 
-const double kP = 0.5;
+const double kP = 0.1;
 
 const long countStepBound = 500;
 const long countTurnBound = 500;
@@ -102,11 +105,11 @@ volatile long countRRASaved = 0;
  * 1 90 degree turn = 175 ticks (ps includes both sides)
  * 
  */
-long currentLRABound = 1000;
+long currentLRABound = 500;
 long currentRRABound = 500;
-
+//175
 long currentTurnBound = 175;
-
+long currentFullBound = 350;
 //timer values
 unsigned long blinkerMillis = 0;
 unsigned long irMillis = 0;
@@ -131,6 +134,9 @@ void moveBreak(int pinFor, int pinRev);
 void turnLeft(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
 void turnRight(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
 
+void rightMotor(int pinF,int pinR, int sp1,int sp2);
+void leftMotor(int pinF,int pinR, int sp1,int sp2);
+
 void moveWheelsFor(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
 void moveWheelsRev(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
 
@@ -144,7 +150,7 @@ void rightEncoderEvent();
 char keyboardInput = '0';
 
 void setup() {
-  Serial1.begin(9600);
+  Serial.begin(9600);
   //define pins
   //led pin
   pinMode(ledPin, OUTPUT);
@@ -200,11 +206,18 @@ void setup() {
   analogWrite(irEmitPinFR, 255);
   sensorReadFR = analogRead(irRecievePinFR) - interFR;
   digitalWrite(ledPin, HIGH);
-  while(sensorReadFR <= 400){
+  while(settingVars){
     analogWrite(irEmitPinFR, 255);
+    analogWrite(irEmitPinL, 255);
+    analogWrite(irEmitPinR, 255);
     sensorReadFR = analogRead(irRecievePinFR);
+    //mappedL = analogRead(irRecievePinL);
+    //mappedR = analogRead(irRecievePinR);
     moveBreak(forwardPinL, reversePinL);
     moveBreak(forwardPinR, reversePinR);
+    if(sensorReadFR >= 400) {
+      settingVars = false;
+    }
   }
 
   //attachInterupts
@@ -227,8 +240,8 @@ void loop() {
     blinkerMillis = currentMillis;
   }
   
-  if(Serial1.available() > 0) {
-    keyboardInput = Serial1.read();
+  if(Serial.available() > 0) {
+    keyboardInput = Serial.read();
     if(keyboardInput == 'w') {
       userCommand = USERFOR;
     }
@@ -270,11 +283,11 @@ void loop() {
       sensorReadFL = analogRead(irRecievePinFL) - interFL;
       sensorReadFR = analogRead(irRecievePinFR) - interFR;
       sensorReadR = analogRead(irRecievePinR) - interR;
-66
-      sensorReadL = map(sensorReadL, 60, 2500, 0, 500);
-      sensorReadFL = map(sensorReadFL, 110, 1000, 0, 500);
-      sensorReadFR = map(sensorReadFR, 110, 1000, 0, 500);
-      sensorReadR = map(sensorReadR, 60, 1000, 0, 500);
+
+      sensorReadL = map(sensorReadL, 0, mappedL, 0, 500) + 20;
+      sensorReadFL = map(sensorReadFL, 0, 1000, 0, 500);
+      sensorReadFR = map(sensorReadFR, 0, 1000, 0, 500);
+      sensorReadR = pow(map(sensorReadR, 0, mappedR, 0, 500),1.1);
       analogWrite(irEmitPinL, 0);
       analogWrite(irEmitPinFL, 0);
       analogWrite(irEmitPinFR, 0);
@@ -314,8 +327,8 @@ void loop() {
   
   //breaks after a cell or action is completed
   if(!actionFinished) {
-    if(userCommand == USERLEF) {
-      if(countLRASaved - countLRA >= currentTurnBound || countLRA- countLRASaved >= currentTurnBound) {
+    if(userCommand == USERINV) {
+      if(countLRASaved - countLRA  >= currentFullBound || countLRA - countLRASaved >= currentTurnBound) {
         actionFinished = true;
       }
     }
@@ -331,7 +344,7 @@ void loop() {
     }
   }
   else if(switchMove) {
-    if(sensorReadFL >= 40 || sensorReadFR >= 40) {
+    if(sensorReadFL >= 300 || sensorReadFR >= 300) {
       userCommand = USERLEF;
       switchMove = false;
       actionFinished = false;
@@ -350,34 +363,34 @@ void loop() {
     actionFinished = false;
     actionMillis = currentMillis;
   }
-  userCommand = USERBRK;
+  
   moveMouse(userCommand, speedMaxLeft, speedMaxRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
   
   if(currentMillis - infoMillis >= infoDelay) {
-    Serial1.print("LeftSpeed: ");
-    Serial1.println(speedLeft);
-    Serial1.print("RightSpeed: ");
-    Serial1.println(speedRight);
-    Serial1.print("TicksL: ");
-    Serial1.println(countLRA);
-    Serial1.print("TicksR: ");
-    Serial1.println(countRRA);
-    Serial1.print("Right: ");
-    Serial1.println(sensorReadR);
-    Serial1.print("Interference: ");
-    Serial1.println(interR);
-    Serial1.print("RightTop: ");
-    Serial1.println(sensorReadFR);
-    Serial1.print("Interference: ");
-    Serial1.println(interFR);
-    Serial1.print("LeftTop: ");
-    Serial1.println(sensorReadFL);
-    Serial1.print("Interference: ");
-    Serial1.println(interFL);
-    Serial1.print("Left: ");
-    Serial1.println(sensorReadL);
-    Serial1.print("Interference: ");
-    Serial1.println(interL);
+    Serial.print("LeftSpeed: ");
+    Serial.println(speedLeft);
+    Serial.print("RightSpeed: ");
+    Serial.println(speedRight);
+    Serial.print("TicksL: ");
+    Serial.println(countLRA);
+    Serial.print("TicksR: ");
+    Serial.println(countRRA);
+    Serial.print("Right: ");
+    Serial.println(sensorReadR);
+    Serial.print("Interference: ");
+    Serial.println(interR);
+    Serial.print("RightTop: ");
+    Serial.println(sensorReadFR);
+    Serial.print("Interference: ");
+    Serial.println(interFR);
+    Serial.print("LeftTop: ");
+    Serial.println(sensorReadFL);
+    Serial.print("Interference: ");
+    Serial.println(interFL);
+    Serial.print("Left: ");
+    Serial.println(sensorReadL);
+    Serial.print("Interference: ");
+    Serial.println(interL);
     infoMillis = currentMillis;
   }
 }
@@ -468,6 +481,15 @@ void moveWheelsRev(int spL, int spR, int pinForL, int pinRevL, int pinForR, int 
   analogWrite(pinRevR, 0);
 }
 
+void leftMotor(int pinF,int pinR, int sp1,int sp2) {
+  analogWrite(pinF, sp1);
+  analogWrite(pinR, sp2);
+}
+
+void rightMotor(int pinF,int pinR, int sp1,int sp2) {
+  analogWrite(pinF, sp2);
+  analogWrite(pinR, sp1);
+}
 void mazeSolving() {
 	/*distmaze := int[16][16]
 wallmaze := int[16][16]
