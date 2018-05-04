@@ -4,6 +4,7 @@
 #define USERLEF 3
 #define USERRIG 4
 #define USERINV 5
+#define USERRTU 6
 
 #define SIZEX 16
 #define SIZEY 16
@@ -100,6 +101,8 @@ volatile long countRRA = 0;
 
 volatile long countLRASaved = 0;
 volatile long countRRASaved = 0;
+
+volatile long countTempTicks;
 /*estimated measurements
  * 1 cell step = 500 ticks
  * 1 90 degree turn = 175 ticks (ps includes both sides)
@@ -125,7 +128,7 @@ bool areIREmittersOn = true;
 
 const unsigned long infoDelay = 1000;
 const unsigned long correctionDelay = 10;
-const unsigned long actionDelay = 10;
+const unsigned long actionDelay = 2000;
 const unsigned long breakDelay = 1000;
 //function declarations
   //mouse movements
@@ -327,13 +330,28 @@ void loop() {
   
   //breaks after a cell or action is completed
   if(!actionFinished) {
-    if(userCommand == USERINV) {
-      if(countLRASaved - countLRA  >= currentFullBound || countLRA - countLRASaved >= currentTurnBound) {
+    if(userCommand == USERRIG) {
+      if(countLRASaved - countLRA  >= currentTurnBound || countLRA - countLRASaved >= currentTurnBound) {
+        actionFinished = true;
+      }
+    }
+    else if(userCommand == USERLEF) {
+      if(countLRASaved - countLRA  >= currentTurnBound || countLRA - countLRASaved >= currentTurnBound) {
+        actionFinished = true;
+      }
+    }
+    else if(userCommand == USERINV) {
+      if(countLRASaved - countLRA  >= currentFullBound || countLRA - countLRASaved >= currentFullBound) {
         actionFinished = true;
       }
     }
     else if(userCommand == USERFOR) {
-      if(countLRASaved - countLRA >= currentTurnBound || countLRA- countLRASaved >= currentLRABound) {
+      if(countLRASaved - countLRA >= currentLRABound || countLRA- countLRASaved >= currentLRABound) {
+        actionFinished = true;
+      }
+    }
+    else if(userCommand == USERREV) {
+      if(countLRASaved - countLRA >= currentLRABound || countLRA - countLRASaved >= currentLRABound) {
         actionFinished = true;
       }
     }
@@ -342,6 +360,16 @@ void loop() {
         actionFinished = true;
       }
     }
+    if (currentMillis - actionMillis >= actionDelay) {
+      if(userCommand != USERBRK && ((countLRA + 10 >= countTempTicks) && (countLRA <= countTempTicks))) {
+        userCommand = USERREV;
+        countLRASaved = countLRA;
+      }
+      else {
+        actionMillis = currentMillis;
+      }
+      countTempTicks = countLRA;
+    }
   }
   else if(switchMove) {
     if(sensorReadFL >= 300 || sensorReadFR >= 300) {
@@ -349,12 +377,14 @@ void loop() {
       switchMove = false;
       actionFinished = false;
       countLRASaved = countLRA;
+      actionMillis = currentMillis;
     }
     else {
       userCommand = USERFOR;
       switchMove = false;
       actionFinished = false;
       countLRASaved = countLRA;
+      actionMillis = currentMillis;
     }
   }
   else {
@@ -363,7 +393,6 @@ void loop() {
     actionFinished = false;
     actionMillis = currentMillis;
   }
-  
   moveMouse(userCommand, speedMaxLeft, speedMaxRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
   
   if(currentMillis - infoMillis >= infoDelay) {
