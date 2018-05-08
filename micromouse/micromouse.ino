@@ -6,10 +6,10 @@
 //Pins:
   //sensors: F = front
      //inputs:
-int irRecievePinL = A5;
-int irRecievePinFL = A4;
-int irRecievePinFR = A3;
-int irRecievePinR = A2;
+int irReceivePinL = A5;
+int irReceivePinFL = A4;
+int irReceivePinFR = A3;
+int irReceivePinR = A2;
       //outputs:
 int irEmitPinL = A9;
 int irEmitPinFL = A8;
@@ -30,7 +30,6 @@ int bPinR = 10;
 int ledPin = 13;
 bool isLedOn = false;
 
-
 //Maze parameters:
 #define SIZEX 16    //counting from 1
 #define SIZEY 16
@@ -40,8 +39,8 @@ const int GOALY = 7;
 
 //Sensor vars:
 int sensorReadL, sensorReadFL, sensorReadFR, sensorReadR;
-int readingWallLeft, readingWallRight, readingWallFront = 0;//threshold sensor readings to confirm a wall
-
+int readingWallF, readingWallL, readingWallR = 0;//threshold sensor readings to confirm a wall
+double wallToleranceLow = .05;//lower bound for IR wall detection as compared to calibrations;
 
 //Locomotion vars:
   //directional commands, used in int userCommand:
@@ -59,9 +58,12 @@ bool isTurning = false;//not in control structure
 
 
 //Calibration and speed controls:
-int speedMaxLeft = 255;
+
+int initSamples = 10;//number of interference samples on startup
+
+int speedMaxLeft = 255;//ceiling of motor output
 int speedMaxRight = 255;
-int speedLeft = 0;
+int speedLeft = 0;//actual speed
 int speedRight = 0;
 int recoverSpeedL;
 int recoverSpeedR;
@@ -135,7 +137,7 @@ bool wallRight, wallBack, wallLeft, wallFront = false;
 
 bool routeFound = false;
 
-int posX = 0;
+int posX = 0;//corresponds to BOTTOM LEFT
 int posY = 0;
 
 /*
@@ -155,24 +157,35 @@ bool recoveryMode = false;
 
 
 
-//function declarations
+//Function declarations
+
   //mouse movements
 void moveBreak(int pinFor, int pinRev);
 
-void turnLeft(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
-void turnRight(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
+void turnLeft(int spL, int spR);
+void turnRight(int spL, int sp);
 
 void rightMotor(int pinF,int pinR, int sp1,int sp2);
 void leftMotor(int pinF,int pinR, int sp1,int sp2);
 
-void moveWheelsFor(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
-void moveWheelsRev(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
+void moveWheelsFor(int spL, int spR);
+void moveWheelsRev(int spL, int spR);
 
-void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int reversePinL,int forwardPinR,int reversePinR);
-  //ir functions
+void moveMouse(int userCommand,int speedLeft,int speedRight);
 
+//sets emitters to 'val' analog output and delays 'del' ms to allow adjustment time:
+void setEmitterState(int val, int del);
+
+//sets interference values using average of 'samples' number of tests and 'del' ms delay:
+void setInter(int samples, int del);
+
+//resets readingWall based on the position of the initial cell:
+void setWallThreshold(char orient);
+
+  //IR interrupts:
 void leftEncoderEvent();
 void rightEncoderEvent();
+
 
 //Debug vars:
 char keyboardInput = '\0';
@@ -187,37 +200,28 @@ void setup() {
   pinMode(bPinL, INPUT);
   pinMode(aPinR, INPUT);
   pinMode(bPinR, INPUT);
-  
     //motor control pins:
   pinMode(forwardPinL, OUTPUT);
   pinMode(reversePinR, OUTPUT);
   pinMode(forwardPinL, OUTPUT);
   pinMode(reversePinR, OUTPUT);
-
-  //ir receiver pins:
-  pinMode(irRecievePinL, INPUT);
-  pinMode(irRecievePinFL, INPUT);
-  pinMode(irRecievePinFR, INPUT);
-  pinMode(irRecievePinR, INPUT);
-  //ir emitter pins:
+  
+  pinMode(irReceivePinL, INPUT);
+  pinMode(irReceivePinFL, INPUT);
+  pinMode(irReceivePinFR, INPUT);
+  pinMode(irReceivePinR, INPUT);
+  
   pinMode(irEmitPinL, OUTPUT);
   pinMode(irEmitPinFL, OUTPUT);
   pinMode(irEmitPinFR, OUTPUT);
   pinMode(irEmitPinR, OUTPUT);
-  //led pin:
+  
   pinMode(ledPin, OUTPUT);
 
-  //find interference:
-  analogWrite(irEmitPinL, 0);
-  analogWrite(irEmitPinFL, 0);
-  analogWrite(irEmitPinFR, 0);
-  analogWrite(irEmitPinR, 0);
-  delay(10);//calibrations
-  interL = analogRead(irRecievePinL);
-  interFL =  analogRead(irRecievePinFL);
-  interFR =  analogRead(irRecievePinFR);
-  interR =  analogRead(irRecievePinR);
 
+  //attachInterupts for motor edge counts:
+  attachInterrupt(digitalPinToInterrupt(aPinL), leftEncoderEvent, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(aPinR), rightEncoderEvent, CHANGE);
 
   //setup maze vars:
   //creates a pattern in which the corners are 0 and each orthogonally adjacent index iteratively increments by 1
@@ -230,6 +234,8 @@ void setup() {
       mazeDist[SIZEX - i - 1][SIZEY - j - 1] = val;
     }
   }
+
+
   
   checkQueue[0] = mazeDist[0][0];
   checkSize++;
@@ -237,71 +243,120 @@ void setup() {
   
   //set bounds
   //ready to go
-  //calibrations
-  analogWrite(irEmitPinFR, 255);
-  sensorReadFR = analogRead(irRecievePinFR) - interFR;
-  digitalWrite(ledPin, HIGH);
+
+
 
   //! rework
+  /*
+  
+  //calibrations
+  analogWrite(irEmitPinFR, 255);
+  sensorReadFR = analogRead(irReceivePinFR) - interFR;
+  digitalWrite(ledPin, HIGH);
+
+
   bool settingVars = true;//not in control structure(used in setup only)
   while(settingVars){
     analogWrite(irEmitPinFR, 255);
     analogWrite(irEmitPinL, 255);
     analogWrite(irEmitPinR, 255);
-    sensorReadFR = analogRead(irRecievePinFR);
-    //mappedL = analogRead(irRecievePinL);
-    //mappedR = analogRead(irRecievePinR);
-    moveBreak(forwardPinL, reversePinL);
+    sensorReadFR = analogRead(irReceivePinFR);
+    //mappedL = analogRead(irReceivePinL);
+    //mappedR = analogRead(irReceivePinR);
+        (forwardPinL, reversePinL);
     moveBreak(forwardPinR, reversePinR);
     if(sensorReadFR >= 500) {
       settingVars = false;
     }
   }
+*/
 
-  //attachInterupts for motor edge counts:
-  attachInterrupt(digitalPinToInterrupt(aPinL), leftEncoderEvent, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(aPinR), rightEncoderEvent, CHANGE);
-}
+
+
+//MOUSE IS MOVING STARTING NOW
+
+  //perform inital calibrations, assuming perfect inital position:
+  setInter(initSamples, 50);
+
+  //initial orientation = DOWN
+  
+  setWallThreshold('f');
+  setWallThreshold('r');
+
+  //wait for button || auto orient to LEFT
+
+
+  
+  //orientation = LEFT
+
+  setWallThreshold('l');
+
+
+  //Serial1.println("Walls:");
+  //Serial1.println("Front: " + readingWallF);
+  //Serial1.println("Right: " + readingWallR);
+  //Serial1.println("Left: " + readingWallL);
+
+  
+  //wait for button || auto orient to UP
+
+  
+
+  //TEST ONLY: scan all 4 directions, then report what directions mouse thinks are walls:
+  //testWallDetection();
+
+  //TEST ONLY: turn from facing a wall to another wall, report difference between original and now
+  //testTurnFidelity();
+
+  }
+
+
 
 
 
 void loop() {
-  //blinks led every 2 loops
-  currentMillis = millis();
+ 
+  currentMillis = millis();//time set
+  
+  //blinks led every 2 loops if enough time passes
   if(currentMillis - blinkerMillis >= blinkerDelay) {
     if (!isLedOn) {
       digitalWrite(ledPin, HIGH);
-      isLedOn = true;
     }
     else {
       digitalWrite(ledPin, LOW);
-      isLedOn = false;
     }
-    blinkerMillis = currentMillis;
+    
+    isLedOn = !isLedOn;
+    blinkerMillis = currentMillis;//reset timer
   }
 
 
   //Debug keyboard input:
   if(Serial1.available() > 0) {
     keyboardInput = Serial1.read();
-    if(keyboardInput == 'w') {
-      userCommand = USERFOR;
-    }
-    else if(keyboardInput == 's') {
-      userCommand = USERREV;
-    }
-    else if(keyboardInput == 'b') {
+    
+    switch(keyboardInput) {
+    case 'b':
       userCommand = USERBRK;
-    }
-    else if(keyboardInput == 'a') {
+    break;
+    case 'w':
+      userCommand = USERFOR;
+    break;
+    case 's':
+      userCommand = USERREV;
+    break;
+    case 'a':
       userCommand = USERLEF;
-    }
-    else if(keyboardInput == 'x') {
-      userCommand = USERINV;
-    }
-    else if(keyboardInput == 'd') {
+    break;
+    case 'd':
       userCommand = USERRIG;
+    break;
+    case 'x':
+      userCommand = USERINV;
+    break;
     }
+    
     countLRASaved = countLRA;
   }
   
@@ -329,64 +384,43 @@ void loop() {
   }
   else if(posX == goalx && posY == goaly) {
     
-  }
+  }*/
+  
   //finds interference and reads
-*/
- //Calibrations
   if(currentMillis - irMillis >= irDelay) {
     if(areIREmittersOn) {
-      sensorReadL = analogRead(irRecievePinL) - interL;
-      sensorReadFL = analogRead(irRecievePinFL) - interFL;
-      sensorReadFR = analogRead(irRecievePinFR) - interFR;
-      sensorReadR = analogRead(irRecievePinR) - interR;
+      sensorReadL = analogRead(irReceivePinL) - interL;
+      sensorReadFL = analogRead(irReceivePinFL) - interFL;
+      sensorReadFR = analogRead(irReceivePinFR) - interFR;
+      sensorReadR = analogRead(irReceivePinR) - interR;
 
       sensorReadL = map(sensorReadL, 0, mappedL, 0, 500) + 20;
       sensorReadFL = map(sensorReadFL, 0, 1000, 0, 500);
       sensorReadFR = map(sensorReadFR, 0, 1000, 0, 500);
       sensorReadR = pow(map(sensorReadR, 0, mappedR, 0, 500),1.1);
 
-      if(sensorReadFL >= readingWallFront || sensorReadFR >= readingWallFront) {
-        wallFront = true;
-      }
-      else {
-        wallFront = false;
-      }
-      if(sensorReadL >= readingWallLeft) {
-        wallLeft = true;
-      }
-      else {
-        wallLeft = false;
-      }
-      if(sensorReadR >= readingWallRight) {
-        wallRight = true;
-      }
-      else {
-        wallRight = false;
-      }
-      
-      analogWrite(irEmitPinL, 0);
-      analogWrite(irEmitPinFL, 0);
-      analogWrite(irEmitPinFR, 0);
-      analogWrite(irEmitPinR, 0);
-      
-      areIREmittersOn = false;
+      wallFront = (sensorReadFL + sensorReadFR >= 2 * readingWallF);
+      wallLeft = (sensorReadL >= readingWallL);
+      wallRight = (sensorReadR >= readingWallR);
+
+      setEmitterState(0,0);
     }
     else {
-      interL = analogRead(irRecievePinL);
-      interFL =  analogRead(irRecievePinFL);
-      interFR =  analogRead(irRecievePinFR);
-      interR =  analogRead(irRecievePinR);
-      
-      analogWrite(irEmitPinL, 255);
-      analogWrite(irEmitPinFL, 255);
-      analogWrite(irEmitPinFR, 255);
-      analogWrite(irEmitPinR, 255);
+      interL = analogRead(irReceivePinL);
+      interFL =  analogRead(irReceivePinFL);
+      interFR =  analogRead(irReceivePinFR);
+      interR =  analogRead(irReceivePinR);
 
-      areIREmittersOn = true;
+      setEmitterState(255, 0);
     }
-    irMillis = currentMillis;
+    
+    areIREmittersOn = !areIREmittersOn;
+    irMillis = currentMillis;//reset timer
   }
 
+
+
+//Proportional Error Correction
   if(currentMillis - correctionMillis > correctionDelay) {
     if(sensorReadL > sensorReadR && areIREmittersOn && wallLeft && wallRight && userCommand == USERFOR) {
       displacementReadings = sensorReadL - sensorReadR;
@@ -406,8 +440,10 @@ void loop() {
         //Serial1.println(displacementReadings);
       }
     }
-    correctionMillis = currentMillis;
+    correctionMillis = currentMillis;//reset timer
   }
+
+
   
   //breaks after a cell or action is completed
   if(recoveryMode) {
@@ -423,7 +459,7 @@ void loop() {
       speedRight = (speedMaxRight * 3 ) /4;
     }
     else if(userCommand == USERREV) {
-      if(countLRASaved - countLRA >= currentLRABound || countLRA - countLRASaved >= currentLRABound) {
+      if(abs(countLRASaved - countLRA) >= currentLRABound) {
         actionFinished = true;
         recoveryMode = false;
         speedLeft = speedMaxLeft;
@@ -433,14 +469,14 @@ void loop() {
   }
   else if(!actionFinished) {
     if(userCommand == USERRIG) {
-      if(countLRASaved - countLRA  >= currentTurnBound || countLRA - countLRASaved >= currentTurnBound) {
+      if(abs(countLRASaved - countLRA)  >= currentTurnBound) {
         actionLeft = true;
         leftMotor(forwardPinL, reversePinL, 0, 0);
       }
       else{
         leftMotor(forwardPinL, reversePinL, speedLeft,0);
       }
-      if(countRRASaved - countRRA  >= currentTurnBound || countRRA - countRRASaved >= currentTurnBound) {
+      if(abs(countRRASaved - countRRA)  >= currentTurnBound) {
         actionRight = true;
         rightMotor(forwardPinR, reversePinR, 0, 0);
       }
@@ -461,14 +497,14 @@ void loop() {
       }
     }
     else if(userCommand == USERLEF) {
-      if(countLRASaved - countLRA  >= currentTurnBound || countLRA - countLRASaved >= currentTurnBound) {
+      if(abs(countLRASaved - countLRA)  >= currentTurnBound) {
         actionLeft = true;
         leftMotor(forwardPinL, reversePinL, 0, 0);
       }
       else {
         leftMotor(forwardPinL, reversePinL, 0,speedLeft);
       }
-      if(countRRASaved - countRRA  >= currentTurnBound || countRRA - countRRASaved >= currentTurnBound) {
+      if(abs(countRRASaved - countRRA)  >= currentTurnBound) {
         actionRight = true;
         rightMotor(forwardPinR, reversePinR, 0 ,0);
       }
@@ -574,7 +610,7 @@ void loop() {
   }
   //userCommand = USERBRK;
   if(userCommand != USERLEF && userCommand != USERRIG) {
-    moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+    moveMouse(userCommand, speedLeft, speedRight);
   }
   
   if(currentMillis - infoMillis >= infoDelay) {
@@ -643,28 +679,28 @@ void moveBreak(int pinFor, int pinRev) {
 }
 
 
-void turnLeft(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
-  analogWrite(pinForL, 0);
-  analogWrite(pinRevL, spL);
-  analogWrite(pinForR, 0);
-  analogWrite(pinRevR, spR);
+void turnLeft(int spL, int spR) {
+  analogWrite(forwardPinL, 0);
+  analogWrite(reversePinL, spL);
+  analogWrite(forwardPinR, 0);
+  analogWrite(reversePinR, spR);
 }
 
-void turnRight(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
-  analogWrite(pinForL, spL);
-  analogWrite(pinRevL, 0);
-  analogWrite(pinForR, spR);
-  analogWrite(pinRevR, 0);
+void turnRight(int spL, int spR) {
+  analogWrite(forwardPinL, spL);
+  analogWrite(reversePinL, 0);
+  analogWrite(forwardPinR, spR);
+  analogWrite(reversePinR, 0);
 }
 
-void turnHalfCircle(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
-  analogWrite(pinForL, 0);
-  analogWrite(pinRevL, spL);
-  analogWrite(pinForR, 0);
-  analogWrite(pinRevR, spR);
+void turnHalfCircle(int spL, int spR) {
+  analogWrite(forwardPinL, 0);
+  analogWrite(reversePinL, spL);
+  analogWrite(forwardPinR, 0);
+  analogWrite(reversePinR, spR);
 }
 
-void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int reversePinL,int forwardPinR,int reversePinR) {
+void moveMouse(int userCommand,int speedLeft,int speedRight) {
   switch(userCommand) {
     case USERBRK:
     moveBreak(forwardPinL, reversePinL);
@@ -672,23 +708,23 @@ void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int 
     break;
     
     case USERFOR:
-    moveWheelsFor(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+    moveWheelsFor(speedLeft, speedRight);
     break;
     
     case USERREV:
-    moveWheelsRev(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+    moveWheelsRev(speedLeft, speedRight);
     break;
     
     case USERLEF:
-    turnLeft(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+    turnLeft(speedLeft, speedRight);
     break;
     
     case USERRIG:
-    turnRight(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+    turnRight(speedLeft, speedRight);
     break;
 
     case USERINV:
-    turnHalfCircle(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+    turnHalfCircle(speedLeft, speedRight);
     break;
     
     default:
@@ -698,18 +734,18 @@ void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int 
   }
 }
 
-void moveWheelsFor(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
-  analogWrite(pinForL, spL);
-  analogWrite(pinRevL, 0);
-  analogWrite(pinForR, 0);
-  analogWrite(pinRevR, spR);
+void moveWheelsFor(int spL, int spR) {
+  analogWrite(forwardPinL, spL);
+  analogWrite(reversePinL, 0);
+  analogWrite(forwardPinR, 0);
+  analogWrite(reversePinR, spR);
 }
 
-void moveWheelsRev(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
-  analogWrite(pinForL, 0);
-  analogWrite(pinRevL, spL);
-  analogWrite(pinForR, spR);
-  analogWrite(pinRevR, 0);
+void moveWheelsRev(int spL, int spR) {
+  analogWrite(forwardPinL, 0);
+  analogWrite(reversePinL, spL);
+  analogWrite(forwardPinR, spR);
+  analogWrite(reversePinR, 0);
 }
 
 void leftMotor(int pinF,int pinR, int sp1,int sp2) {
@@ -743,40 +779,94 @@ while(start != goal)
 return ideal path*/
 }
 
+
+
 void leftEncoderEvent() {
-  if (digitalRead(aPinL) == HIGH) {
-    if (digitalRead(bPinL) == LOW) {
-      countLRA--;
-    }
-    else {
-      countLRA++;
-    }
+  if (digitalRead(aPinL) == digitalRead(bPinL)) {
+    countLRA++; 
   }
   else {
-    if(digitalRead(bPinL) == LOW) {
-      countLRA++;
-    }
-    else {
-      countLRA--;
-    }
+    countLRA--;
   }
 }
 
 void rightEncoderEvent() {
-  if (digitalRead(aPinR) == HIGH) {
-    if (digitalRead(bPinR) == LOW) {
-      countRRA--;
-    }
-    else {
-      countRRA++;
-    }
+  if (digitalRead(aPinR) == digitalRead(bPinR)) {
+    countRRA++; 
   }
   else {
-    if(digitalRead(bPinR) == LOW) {
-      countRRA++;
-    }
-    else {
-      countRRA--;
-    }
+    countRRA--;
+  }
+}
+
+
+void setInter(int samp, int del) {
+  int sumL = 0;
+  int sumFL = 0;
+  int sumFR = 0;
+  int sumR = 0;
+    
+  setEmitterState(0, 10);
+
+  for(int i = 1; i >= samp; i++) {
+    sumL += analogRead(irReceivePinL);
+    sumFL += analogRead(irReceivePinFL);
+    sumFR += analogRead(irReceivePinFR);
+    sumR += analogRead(irReceivePinR);
+
+    delay(del);
+  }
+  
+  interL = sumL / samp;
+  interFL = sumFL / samp;
+  interFR = sumFR / samp;
+  interR = sumR / samp;
+}
+
+
+
+void setEmitterState(int val, int del){
+  analogWrite(irEmitPinL, val);
+  analogWrite(irEmitPinFL, val);
+  analogWrite(irEmitPinFR, val);
+  analogWrite(irEmitPinR, val);
+
+  delay(del);
+  }
+
+
+void setWallThreshold(char orient) {
+  setEmitterState(255, 10);
+  switch(orient){
+    case 'u':
+      //left wall only
+      readingWallL = analogRead(irReceivePinL) * (1 - wallToleranceLow);
+      break;
+    case 'r':
+      //right wall only
+      readingWallR = analogRead(irReceivePinR) * (1 - wallToleranceLow);
+      break;
+    case 'd':
+      //front & right wall
+      readingWallF = (analogRead(irReceivePinFL) + analogRead(irReceivePinFR) / 2 * (1 - wallToleranceLow));
+      readingWallR = analogRead(irReceivePinR) * (1 - wallToleranceLow);        
+      break;
+    case 'l':
+      //front & left wall
+      readingWallF = (analogRead(irReceivePinFL) + analogRead(irReceivePinFR) / 2 * (1 - wallToleranceLow));
+      readingWallL = analogRead(irReceivePinL) * (1 - wallToleranceLow);
+      break;
+  }
+}
+
+void blindTurn(char dir, int deg) {
+  int savedTicksR = 
+  switch(dir) {
+    case 'r':
+      while(
+
+
+
+    
   }
 }
