@@ -1,3 +1,50 @@
+/*  
+ *  Micromouse 2018
+ *  UCR Robotics, Team: Straight 'Outta Cheddar
+ */
+
+//Pins:
+  //sensors: F = front
+     //inputs:
+int irRecievePinL = A5;
+int irRecievePinFL = A4;
+int irRecievePinFR = A3;
+int irRecievePinR = A2;
+      //outputs:
+int irEmitPinL = A9;
+int irEmitPinFL = A8;
+int irEmitPinFR = A7;
+int irEmitPinR = A6;
+  //motors:
+    //controls:
+int forwardPinR = 6;
+int reversePinR = 5;
+int forwardPinL = 4;
+int reversePinL = 3;
+    //timing data:
+int aPinL = 7;
+int bPinL = 8;
+int aPinR = 9;
+int bPinR = 10;
+  //led:
+int ledPin = 13;
+bool isLedOn = false;
+
+
+//Maze parameters:
+#define SIZEX 16    //counting from 1
+#define SIZEY 16
+const int GOALX = 7;//counting from 0
+const int GOALY = 7;
+
+
+//Sensor vars:
+int sensorReadL, sensorReadFL, sensorReadFR, sensorReadR;
+int readingWallLeft, readingWallRight, readingWallFront = 0;//threshold sensor readings to confirm a wall
+
+
+//Locomotion vars:
+  //directional commands, used in int userCommand:
 #define USERBRK 0
 #define USERFOR 1
 #define USERREV 2
@@ -6,106 +53,38 @@
 #define USERINV 5
 #define USERRTU 6
 
-#define SIZEX 16
-#define SIZEY 16
-//mouse characteristics
-/*
- * Front = 1
- * Right = 2
- * Down = 3
- * Left = 4
- *
- */
-char mouseOrient = 1;
-bool wallRight, wallBack, wallLeft, wallFront = false;
+int userCommand = USERBRK;
 
-int locationX = 0;
-int locationY = 0;
+bool isTurning = false;//not in control structure
 
-bool settingVars = true;
-bool isTurning = false;
-//maze specs
-int sizeX = SIZEX;
-int sizeY = SIZEY;
 
-int goalx = sizeX/2;
-int goaly = sizeY/2;
-
-int mazeDist[SIZEX][SIZEY];
-int mazeWalls[SIZEX][SIZEY];
-
-int checkQueue[SIZEX * SIZEY];
-int checkTempValue;
-int checkSize = 0;
-
-bool goalFound = false;
-
-int readingWallLeft = 130;
-int readingWallRight = 130;
-int readingWallFront = 300;
-//pins
-int irRecievePinL = A5;
-int irRecievePinFL = A4;
-int irRecievePinFR = A3;
-int irRecievePinR = A2;
-
-int irEmitPinL = A9;
-int irEmitPinFL = A8;
-int irEmitPinFR = A7;
-int irEmitPinR = A6;
-
-int forwardPinR = 6;
-int reversePinR = 5;
-int forwardPinL = 4;
-int reversePinL = 3;
-
-int aPinL = 7;
-int bPinL = 8;
-int aPinR = 9;
-int bPinR = 10;
-
-int ledPin = 13;
-//led blinker bool
-bool isLedOn = false;
-
-//calculations
-
-int speedMax = 250;
-int speedMaxLeft = 165 ;
-int speedMaxRight = 180;
-int speedLeft = 200;
-int speedRight = 200;
+//Calibration and speed controls:
+int speedMaxLeft = 255;
+int speedMaxRight = 255;
+int speedLeft = 0;
+int speedRight = 0;
 int recoverSpeedL;
 int recoverSpeedR;
-//mapped values
-int mappedL = 1000;
-int mappedR = 1000;
+  //mapped values
+int mappedL = 1000;//!should not be hardcoded
+int mappedR = 1000;//!should not be hardcoded
 //const int speedREV = 0;
 //const int speedFOR = 255;
-const int speedNEU = 128;
+const int speedNEU = 127;
 
-int userCommand = USERBRK;
-int sensorReadL, sensorReadFL, sensorReadFR, sensorReadR;
-
-const int sensorReadCorrectionBoundL = 30;
-const int sensorReadCorrectionBoundR = 30;
-
-int displacementReadings;
-
-bool switchMove = false;
-bool actionFinished = true;
-bool actionLeft = false;
-bool actionRight = false;
-
-bool recoveryMode = false;
-
-
+  //steady-state interference:
 int interL, interFL, interFR, interR;
 
+  //PID and corrections:
 const double kP = 0.15;
+//const double kI = 0.0;
+//const double kD = 0.0;
 
+//const int sensorReadCorrectionBoundL = 30;
+//const int sensorReadCorrectionBoundR = 30;
+int displacementReadings;
 
-//interupts
+  //interupts
 volatile long countLRA = 0;
 volatile long countRRA = 0;
 
@@ -131,15 +110,51 @@ unsigned long actionMillis = 0;
 unsigned long correctionMillis = 5;
 unsigned long currentMillis;
 
+    //delays:
 const unsigned long blinkerDelay = 1000;
 
 const unsigned long irDelay = 10;
 bool areIREmittersOn = true;
 
-const unsigned long infoDelay = 1000;
-const unsigned long correctionDelay = 10;
+const unsigned long infoDelay = 1000;//delay between debug updates
+const unsigned long correctionDelay = 10;//delay between speed updates
 const unsigned long actionDelay = 2000;
 const unsigned long breakDelay = 1000;
+
+
+//Solver vars
+
+int mazeDist[SIZEX][SIZEY];
+int mazeWalls[SIZEX][SIZEY];
+
+int checkQueue[SIZEX * SIZEY];
+int checkTempValue;
+int checkSize = 0;
+
+bool wallRight, wallBack, wallLeft, wallFront = false;
+
+bool routeFound = false;
+
+int posX = 0;
+int posY = 0;
+
+/*
+ * Up = 1
+ * Right = 2
+ * Down = 3
+ * Left = 4
+ */
+char mouseOrient = 1;
+
+bool switchMove = false;
+bool actionFinished = true;
+bool actionLeft = false;
+bool actionRight = false;
+
+bool recoveryMode = false;
+
+
+
 //function declarations
   //mouse movements
 void moveBreak(int pinFor, int pinRev);
@@ -159,66 +174,76 @@ void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int 
 void leftEncoderEvent();
 void rightEncoderEvent();
 
-//debug values
-char keyboardInput = '0';
+//Debug vars:
+char keyboardInput = '\0';
+
+
 
 void setup() {
-  Serial1.begin(9600);
-  //define pins
-  //led pin
-  pinMode(ledPin, OUTPUT);
-  //encoder pins
+  Serial1.begin(9600);//Serial is used for USB, Serial1 is used for HC059(Bluetooth)
+  //Define pins:
+    //encoder pins
   pinMode(aPinL, INPUT);
   pinMode(bPinL, INPUT);
   pinMode(aPinR, INPUT);
   pinMode(bPinR, INPUT);
   
-  //motor control pins
+    //motor control pins:
   pinMode(forwardPinL, OUTPUT);
   pinMode(reversePinR, OUTPUT);
   pinMode(forwardPinL, OUTPUT);
   pinMode(reversePinR, OUTPUT);
 
-  //ir receiver pins
+  //ir receiver pins:
   pinMode(irRecievePinL, INPUT);
   pinMode(irRecievePinFL, INPUT);
   pinMode(irRecievePinFR, INPUT);
   pinMode(irRecievePinR, INPUT);
-  
-  //ir emitter pins
+  //ir emitter pins:
   pinMode(irEmitPinL, OUTPUT);
   pinMode(irEmitPinFL, OUTPUT);
   pinMode(irEmitPinFR, OUTPUT);
   pinMode(irEmitPinR, OUTPUT);
+  //led pin:
+  pinMode(ledPin, OUTPUT);
 
-  //find interference
+  //find interference:
   analogWrite(irEmitPinL, 0);
   analogWrite(irEmitPinFL, 0);
   analogWrite(irEmitPinFR, 0);
   analogWrite(irEmitPinR, 0);
-  delay(10);
+  delay(10);//calibrations
   interL = analogRead(irRecievePinL);
   interFL =  analogRead(irRecievePinFL);
   interFR =  analogRead(irRecievePinFR);
   interR =  analogRead(irRecievePinR);
-  //setup maze vars
-  for(int i = 0; i < sizeX/2; i++) {
-	  for(int j = 0; j < sizeY/2; j++) {
-      mazeDist[i][j] = sizeX - i - j - 2;
-      mazeDist[sizeX - i - 1][sizeY - j - 1] = sizeX - i - j - 2;
-      mazeDist[i][sizeY - j - 1] = sizeX - i - j - 2;
-      mazeDist[sizeX - i - 1][j] = sizeX - i - j - 2;
-	  }
+
+
+  //setup maze vars:
+  //creates a pattern in which the corners are 0 and each orthogonally adjacent index iteratively increments by 1
+  for(int i = 0; i < (SIZEX + 1)/2; i++) {
+    for(int j = 0; j < (SIZEY + 1)/2; j++) {
+      int val = i + j;
+      mazeDist[i][j] = val;
+      mazeDist[i][SIZEY - j - 1] = val;
+      mazeDist[SIZEX - i - 1][j] = val;
+      mazeDist[SIZEX - i - 1][SIZEY - j - 1] = val;
+    }
   }
+  
   checkQueue[0] = mazeDist[0][0];
   checkSize++;
   //debug keyboard
   
   //set bounds
   //ready to go
+  //calibrations
   analogWrite(irEmitPinFR, 255);
   sensorReadFR = analogRead(irRecievePinFR) - interFR;
   digitalWrite(ledPin, HIGH);
+
+  //! rework
+  bool settingVars = true;//not in control structure(used in setup only)
   while(settingVars){
     analogWrite(irEmitPinFR, 255);
     analogWrite(irEmitPinL, 255);
@@ -233,10 +258,12 @@ void setup() {
     }
   }
 
-  //attachInterupts
-  attachInterrupt(digitalPinToInterrupt(aPinL),leftEncoderEvent, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(aPinR),rightEncoderEvent, CHANGE);
+  //attachInterupts for motor edge counts:
+  attachInterrupt(digitalPinToInterrupt(aPinL), leftEncoderEvent, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(aPinR), rightEncoderEvent, CHANGE);
 }
+
+
 
 void loop() {
   //blinks led every 2 loops
@@ -252,7 +279,9 @@ void loop() {
     }
     blinkerMillis = currentMillis;
   }
-  
+
+
+  //Debug keyboard input:
   if(Serial1.available() > 0) {
     keyboardInput = Serial1.read();
     if(keyboardInput == 'w') {
@@ -276,20 +305,33 @@ void loop() {
     countLRASaved = countLRA;
   }
   
-  /*if(locationX != goalx && locationY != goaly) {
-    checkQueue[0] = mazeDist[locationX][locationY];
+  /*if(posX != goalx && posY != goaly) {
+    checkQueue[0] = mazeDist[posX][posY];
     checkSize = 1;
     while(checkSize != 0) {
       checkTempValue = checkQueue[checkSize - 1];
       checkSize--;
-      if(checkTempValue != 
+      if(wallFront) {
+        
+      }
+      if(wallLeft) {
+        
+      }
+      if(wallRight) {
+        
+      }
+      if(wallBack) {
+        
+      }
     }
     //
   }
-  else if(locationX == goalx && locationY == goaly) {
+  else if(posX == goalx && posY == goaly) {
     
   }*/
   //finds interference and reads
+
+ //Calibrations
   if(currentMillis - irMillis >= irDelay) {
     if(areIREmittersOn) {
       sensorReadL = analogRead(irRecievePinL) - interL;
@@ -405,6 +447,12 @@ void loop() {
         rightMotor(forwardPinR, reversePinR, 0, speedRight);
       }
       if(actionRight && actionLeft) {
+        if(mouseOrient == 4) {
+          mouseOrient = 1;
+        }
+        else {
+          mouseOrient++;
+        }
         actionFinished = true;
         isTurning = false;
         speedLeft = speedMaxLeft;
@@ -427,6 +475,12 @@ void loop() {
         rightMotor(forwardPinR, reversePinR, speedRight,0);
       }
       if(actionRight && actionLeft) {
+        if(mouseOrient == 1) {
+          mouseOrient = 4;
+        }
+        else {
+          mouseOrient--;
+        }
         actionFinished = true;
         isTurning = false;
         speedLeft = speedMaxLeft;
@@ -459,6 +513,7 @@ void loop() {
         actionFinished = true;
       }
     }
+    
     if (currentMillis - actionMillis >= actionDelay) {
       if(userCommand != USERBRK) {
         recoveryMode = true;
@@ -566,7 +621,11 @@ void loop() {
   }
 }
 
-//function definitions
+
+
+//Function definitions:
+
+  //simple locomotion:
 void moveForward(int pinFor, int pinRev, int motSpeed) {
     analogWrite(pinFor, motSpeed);
     digitalWrite(pinRev, LOW);
@@ -632,7 +691,7 @@ void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int 
     break;
     
     default:
-	  moveBreak(forwardPinL, reversePinL);
+    moveBreak(forwardPinL, reversePinL);
     moveBreak(forwardPinR, reversePinR);
     break;
   }
@@ -662,7 +721,7 @@ void rightMotor(int pinF,int pinR, int sp1,int sp2) {
   analogWrite(pinR, sp1);
 }
 void mazeSolving() {
-	/*distmaze := int[16][16]
+  /*distmaze := int[16][16]
 wallmaze := int[16][16]
 goal := (8,8)
 start := (0,0)
