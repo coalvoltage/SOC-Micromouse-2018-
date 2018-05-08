@@ -1,3 +1,6 @@
+<<<<<<< HEAD:ChrisBranch_v2.ino
+
+=======
 /*
  * UCR Robotics: Micromouse Competition
  * Team: Straight 'Outta Cheddar
@@ -313,3 +316,4 @@ int findLightInterference(int rL, int rFL, int rFR, int rR, int eL, int eFL, int
   }
   return minInter;
 }
+>>>>>>> 3a91f617905741f7d5b333a2a35138ff3fd9eda1:ChrisBranch_v2/ChrisBranch_v2.ino
