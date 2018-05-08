@@ -30,7 +30,6 @@ int bPinR = 10;
 int ledPin = 13;
 bool isLedOn = false;
 
-
 //Maze parameters:
 #define SIZEX 16    //counting from 1
 #define SIZEY 16
@@ -171,7 +170,13 @@ void moveWheelsFor(int spL, int spR, int pinForL, int pinRevL, int pinForR, int 
 void moveWheelsRev(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
 
 void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int reversePinL,int forwardPinR,int reversePinR);
-  
+
+//sets emitters to 'val' analog output and delays 'del' ms to allow adjustment time:
+void setEmitterState(int val, int del);
+
+//sets interference values using average of 'samples' number of tests and 'del' ms delay:
+void setInter(int samples, int del);
+
   //IR interrupts:
 void leftEncoderEvent();
 void rightEncoderEvent();
@@ -209,8 +214,9 @@ void setup() {
   pinMode(ledPin, OUTPUT);
 
 
-  setInitialInter(initSamples);
-
+  //attachInterupts for motor edge counts:
+  attachInterrupt(digitalPinToInterrupt(aPinL), leftEncoderEvent, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(aPinR), rightEncoderEvent, CHANGE);
 
   //setup maze vars:
   //creates a pattern in which the corners are 0 and each orthogonally adjacent index iteratively increments by 1
@@ -223,6 +229,8 @@ void setup() {
       mazeDist[SIZEX - i - 1][SIZEY - j - 1] = val;
     }
   }
+
+
   
   checkQueue[0] = mazeDist[0][0];
   checkSize++;
@@ -230,12 +238,18 @@ void setup() {
   
   //set bounds
   //ready to go
+
+
+
+
+  
   //calibrations
-  /*ranalogWrite(irEmitPinFR, 255);
+  analogWrite(irEmitPinFR, 255);
   sensorReadFR = analogRead(irReceivePinFR) - interFR;
   digitalWrite(ledPin, HIGH);
 
   //! rework
+  /*
   bool settingVars = true;//not in control structure(used in setup only)
   while(settingVars){
     analogWrite(irEmitPinFR, 255);
@@ -248,76 +262,69 @@ void setup() {
     moveBreak(forwardPinR, reversePinR);
     if(sensorReadFR >= 500) {
       settingVars = false;
-    */
     }
   }
+*/
 
-  //attachInterupts for motor edge counts:
-  attachInterrupt(digitalPinToInterrupt(aPinL), leftEncoderEvent, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(aPinR), rightEncoderEvent, CHANGE);
-}
+
+
+  //perform inital calibrations, assuming perfect inital position:
+  setInter(initSamples, 50);
+  //ir on
+  //sample
+  //
+  }
+
+
 
 
 
 void loop() {
-  //blinks led every 2 loops
-  currentMillis = millis();
+ 
+  currentMillis = millis();//time set
+  
+  //blinks led every 2 loops if enough time passes
   if(currentMillis - blinkerMillis >= blinkerDelay) {
     if (!isLedOn) {
       digitalWrite(ledPin, HIGH);
-      isLedOn = true;
     }
     else {
       digitalWrite(ledPin, LOW);
-      isLedOn = false;
     }
-    blinkerMillis = currentMillis;
+    
+    isLedOn = !isLedOn;
+    blinkerMillis = currentMillis;//reset timer
   }
 
 
   //Debug keyboard input:
   if(Serial1.available() > 0) {
     keyboardInput = Serial1.read();
-    if(keyboardInput == 'w') {
-      userCommand = USERFOR;
-    }
-    else if(keyboardInput == 's') {
-      userCommand = USERREV;
-    }
-    else if(keyboardInput == 'b') {
+    
+    switch(keyboardInput) {
+    case 'b':
       userCommand = USERBRK;
-    }
-    else if(keyboardInput == 'a') {
+    break;
+    case 'w':
+      userCommand = USERFOR;
+    break;
+    case 's':
+      userCommand = USERREV;
+    break;
+    case 'a':
       userCommand = USERLEF;
-    }
-    else if(keyboardInput == 'x') {
+    break;
+    case 'd':
+      userCommand = USERRIG;
+    break;
+    case 'x':
       userCommand = USERINV;
     }
-    else if(keyboardInput == 'd') {
-      userCommand = USERRIG;
-    }
+    
     countLRASaved = countLRA;
   }
 
-  switch(keyboardInput) {
-    case b:
-      userCommand = USERBRK;
-    break;
-    case w:
-      userCommand = USERFFOR;
-    break;
-    case s:
-      userCommand = USERFREV;
-    break;
-    case a:
-      userCommand = USERFLEF;
-    break;
-    case d:
-      userCommand = USERRIG;
-    break;
-    case x:
-      userCommand = USERINV;
-  }
+  
   
   /*if(posX != goalx && posY != goaly) {
     checkQueue[0] = mazeDist[posX][posY];
@@ -334,7 +341,7 @@ void loop() {
   }*/
   //finds interference and reads
 
- //Calibrations
+ //Wall Check:
   if(currentMillis - irMillis >= irDelay) {
     if(areIREmittersOn) {
       sensorReadL = analogRead(irReceivePinL) - interL;
@@ -347,31 +354,15 @@ void loop() {
       sensorReadFR = map(sensorReadFR, 0, 1000, 0, 500);
       sensorReadR = pow(map(sensorReadR, 0, mappedR, 0, 500),1.1);
 
-      if(sensorReadFL >= readingWallFront || sensorReadFR >= readingWallFront) {
-        wallFront = true;//^ could be changed to 'if(sensorReadFL + sensorRead FR >= 2 * readingWallFront)'
-      }
-      else {
-        wallFront = false;
-      }
-      if(sensorReadL >= readingWallLeft) {
-        wallLeft = true;
-      }
-      else {
-        wallLeft = false;
-      }
-      if(sensorReadR >= readingWallRight) {
-        wallRight = true;
-      }
-      else {
-        wallRight = false;
-      }
+
+      wallFront = (sensorReadFL >= readingWallFront || sensorReadFR >= readingWallFront);// could be changed to '(sensorReadFL + sensorRead FR >= 2 * readingWallFront)'
+      wallLeft = (sensorReadL >= readingWallLeft);
+      wallRight = (sensorReadR >= readingWallRight);
       
       analogWrite(irEmitPinL, 0);
       analogWrite(irEmitPinFL, 0);
       analogWrite(irEmitPinFR, 0);
       analogWrite(irEmitPinR, 0);
-      
-      areIREmittersOn = false;
     }
     else {
       interL = analogRead(irReceivePinL);
@@ -383,12 +374,15 @@ void loop() {
       analogWrite(irEmitPinFL, 255);
       analogWrite(irEmitPinFR, 255);
       analogWrite(irEmitPinR, 255);
-
-      areIREmittersOn = true;
     }
-    irMillis = currentMillis;
+    
+    areIREmittersOn = !areIREmittersOn;
+    irMillis = currentMillis;//reset timer
   }
 
+
+
+//Proportional Error Correction
   if(currentMillis - correctionMillis > correctionDelay) {
     if(sensorReadL > sensorReadR && areIREmittersOn && wallLeft && wallRight && userCommand == USERFOR) {
       displacementReadings = sensorReadL - sensorReadR;
@@ -408,8 +402,10 @@ void loop() {
         //Serial1.println(displacementReadings);
       }
     }
-    correctionMillis = currentMillis;
+    correctionMillis = currentMillis;//reset timer
   }
+
+
   
   //breaks after a cell or action is completed
   if(recoveryMode) {
@@ -733,46 +729,32 @@ while(start != goal)
 return ideal path*/
 }
 
+
+
 void leftEncoderEvent() {
-  if (digitalRead(aPinL) == HIGH) {
-    if (digitalRead(bPinL) == LOW) {
-      countLRA--;
-    }
-    else {
-      countLRA++;
-    }
+  if (digitalRead(aPinL) == digitalRead(bPinL)) {
+    countLRA++; 
   }
   else {
-    if(digitalRead(bPinL) == LOW) {
-      countLRA++;
-    }
-    else {
-      countLRA--;
-    }
+    countLRA--;
   }
 }
 
 void rightEncoderEvent() {
-  if (digitalRead(aPinR) == HIGH) {
-    if (digitalRead(bPinR) == LOW) {
-      countRRA--;
-    }
-    else {
-      countRRA++;
-    }
+  if (digitalRead(aPinR) == digitalRead(bPinR)) {
+    countRRA++; 
   }
   else {
-    if(digitalRead(bPinR) == LOW) {
-      countRRA++;
-    }
-    else {
-      countRRA--;
-    }
+    countRRA--;
   }
 }
 
-void setInitialInter(int samp) {
-  int sumL, sumFL, sumFR, sumR = 0;
+
+void setInter(int samp, int del) {
+  int sumL = 0;
+  int sumFL = 0;
+  int sumFR = 0;
+  int sumR = 0;
     
   setEmitterState(0);
 
@@ -781,6 +763,8 @@ void setInitialInter(int samp) {
     sumFL += analogRead(irReceivePinFL);
     sumFR += analogRead(irReceivePinFR);
     sumR += analogRead(irReceivePinR);
+
+    delay(del);
   }
   
   interL = sumL / samp;
@@ -789,13 +773,14 @@ void setInitialInter(int samp) {
   interR = sumR / samp;
 }
 
-void setEmitterState(int pow){
-  analogWrite(irEmitPinL, pow);
-  analogWrite(irEmitPinFL, pow);
-  analogWrite(irEmitPinFR, pow);
-  analogWrite(irEmitPinR, pow);
 
-  delay(10);
+
+void setEmitterState(int val, int del){
+  analogWrite(irEmitPinL, val);
+  analogWrite(irEmitPinFL, val);
+  analogWrite(irEmitPinFR, val);
+  analogWrite(irEmitPinR, val);
+
+  delay(del);
   }
-
-
+  
