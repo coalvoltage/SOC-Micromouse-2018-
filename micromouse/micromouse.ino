@@ -306,6 +306,7 @@ void loop() {
   }
   
   /*if(posX != goalx && posY != goaly) {
+  if(posX != goalx && posY != goaly) {
     checkQueue[0] = mazeDist[posX][posY];
     checkSize = 1;
     while(checkSize != 0) {
@@ -328,9 +329,9 @@ void loop() {
   }
   else if(posX == goalx && posY == goaly) {
     
-  }*/
+  }
   //finds interference and reads
-
+*/
  //Calibrations
   if(currentMillis - irMillis >= irDelay) {
     if(areIREmittersOn) {
