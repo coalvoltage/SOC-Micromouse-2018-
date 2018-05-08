@@ -99,8 +99,8 @@ volatile long countTempTicks;
  * 1 90 degree turn = 175 ticks (ps includes both sides)
  * 
  */
-long currentLRABound = 450;//not used
-long currentRRABound = 450;//not used
+long currentLRABound = 450;
+long currentRRABound = 450;
 //175
 long currentTurnBound = 170;
 long currentFullBound = 350;
@@ -125,6 +125,7 @@ const unsigned long breakDelay = 1000;
 
 
 //Solver vars
+
 int mazeDist[SIZEX][SIZEY];
 int mazeWalls[SIZEX][SIZEY];
 
@@ -360,21 +361,32 @@ void loop() {
   }
   
   /*if(posX != goalx && posY != goaly) {
+  if(posX != goalx && posY != goaly) {
     checkQueue[0] = mazeDist[posX][posY];
     checkSize = 1;
     while(checkSize != 0) {
       checkTempValue = checkQueue[checkSize - 1];
       checkSize--;
-      if(checkTempValue != 
+      if(wallFront) {
+        
+      }
+      if(wallLeft) {
+        
+      }
+      if(wallRight) {
+        
+      }
+      if(wallBack) {
+        
+      }
     }
     //
   }
   else if(posX == goalx && posY == goaly) {
     
   }*/
+  
   //finds interference and reads
-
-  //Wall Check:
   if(currentMillis - irMillis >= irDelay) {
     if(areIREmittersOn) {
       sensorReadL = analogRead(irReceivePinL) - interL;
@@ -472,6 +484,12 @@ void loop() {
         rightMotor(forwardPinR, reversePinR, 0, speedRight);
       }
       if(actionRight && actionLeft) {
+        if(mouseOrient == 4) {
+          mouseOrient = 1;
+        }
+        else {
+          mouseOrient++;
+        }
         actionFinished = true;
         isTurning = false;
         speedLeft = speedMaxLeft;
@@ -494,6 +512,12 @@ void loop() {
         rightMotor(forwardPinR, reversePinR, speedRight,0);
       }
       if(actionRight && actionLeft) {
+        if(mouseOrient == 1) {
+          mouseOrient = 4;
+        }
+        else {
+          mouseOrient--;
+        }
         actionFinished = true;
         isTurning = false;
         speedLeft = speedMaxLeft;
