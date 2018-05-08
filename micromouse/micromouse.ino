@@ -6,10 +6,10 @@
 //Pins:
   //sensors: F = front
      //inputs:
-int irRecievePinL = A5;
-int irRecievePinFL = A4;
-int irRecievePinFR = A3;
-int irRecievePinR = A2;
+int irReceivePinL = A5;
+int irReceivePinFL = A4;
+int irReceivePinFR = A3;
+int irReceivePinR = A2;
       //outputs:
 int irEmitPinL = A9;
 int irEmitPinFL = A8;
@@ -59,9 +59,12 @@ bool isTurning = false;//not in control structure
 
 
 //Calibration and speed controls:
-int speedMaxLeft = 255;
+
+int initSamples = 10;//number of interference samples on startup
+
+int speedMaxLeft = 255;//ceiling of motor output
 int speedMaxRight = 255;
-int speedLeft = 0;
+int speedLeft = 0;//actual speed
 int speedRight = 0;
 int recoverSpeedL;
 int recoverSpeedR;
@@ -134,7 +137,7 @@ bool wallRight, wallBack, wallLeft, wallFront = false;
 
 bool routeFound = false;
 
-int posX = 0;
+int posX = 0;//corresponds to BOTTOM LEFT
 int posY = 0;
 
 /*
@@ -168,10 +171,11 @@ void moveWheelsFor(int spL, int spR, int pinForL, int pinRevL, int pinForR, int 
 void moveWheelsRev(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
 
 void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int reversePinL,int forwardPinR,int reversePinR);
-  //ir functions
-
+  
+  //IR interrupts:
 void leftEncoderEvent();
 void rightEncoderEvent();
+
 
 //Debug vars:
 char keyboardInput = '\0';
@@ -186,36 +190,26 @@ void setup() {
   pinMode(bPinL, INPUT);
   pinMode(aPinR, INPUT);
   pinMode(bPinR, INPUT);
-  
     //motor control pins:
   pinMode(forwardPinL, OUTPUT);
   pinMode(reversePinR, OUTPUT);
   pinMode(forwardPinL, OUTPUT);
   pinMode(reversePinR, OUTPUT);
-
-  //ir receiver pins:
-  pinMode(irRecievePinL, INPUT);
-  pinMode(irRecievePinFL, INPUT);
-  pinMode(irRecievePinFR, INPUT);
-  pinMode(irRecievePinR, INPUT);
-  //ir emitter pins:
+  
+  pinMode(irReceivePinL, INPUT);
+  pinMode(irReceivePinFL, INPUT);
+  pinMode(irReceivePinFR, INPUT);
+  pinMode(irReceivePinR, INPUT);
+  
   pinMode(irEmitPinL, OUTPUT);
   pinMode(irEmitPinFL, OUTPUT);
   pinMode(irEmitPinFR, OUTPUT);
   pinMode(irEmitPinR, OUTPUT);
-  //led pin:
+  
   pinMode(ledPin, OUTPUT);
 
-  //find interference:
-  analogWrite(irEmitPinL, 0);
-  analogWrite(irEmitPinFL, 0);
-  analogWrite(irEmitPinFR, 0);
-  analogWrite(irEmitPinR, 0);
-  delay(10);//calibrations
-  interL = analogRead(irRecievePinL);
-  interFL =  analogRead(irRecievePinFL);
-  interFR =  analogRead(irRecievePinFR);
-  interR =  analogRead(irRecievePinR);
+
+  setInitialInter(initSamples);
 
 
   //setup maze vars:
@@ -237,8 +231,8 @@ void setup() {
   //set bounds
   //ready to go
   //calibrations
-  analogWrite(irEmitPinFR, 255);
-  sensorReadFR = analogRead(irRecievePinFR) - interFR;
+  /*ranalogWrite(irEmitPinFR, 255);
+  sensorReadFR = analogRead(irReceivePinFR) - interFR;
   digitalWrite(ledPin, HIGH);
 
   //! rework
@@ -247,13 +241,14 @@ void setup() {
     analogWrite(irEmitPinFR, 255);
     analogWrite(irEmitPinL, 255);
     analogWrite(irEmitPinR, 255);
-    sensorReadFR = analogRead(irRecievePinFR);
-    //mappedL = analogRead(irRecievePinL);
-    //mappedR = analogRead(irRecievePinR);
+    sensorReadFR = analogRead(irReceivePinFR);
+    //mappedL = analogRead(irReceivePinL);
+    //mappedR = analogRead(irReceivePinR);
     moveBreak(forwardPinL, reversePinL);
     moveBreak(forwardPinR, reversePinR);
     if(sensorReadFR >= 500) {
       settingVars = false;
+    */
     }
   }
 
@@ -303,6 +298,26 @@ void loop() {
     }
     countLRASaved = countLRA;
   }
+
+  switch(keyboardInput) {
+    case b:
+      userCommand = USERBRK;
+    break;
+    case w:
+      userCommand = USERFFOR;
+    break;
+    case s:
+      userCommand = USERFREV;
+    break;
+    case a:
+      userCommand = USERFLEF;
+    break;
+    case d:
+      userCommand = USERRIG;
+    break;
+    case x:
+      userCommand = USERINV;
+  }
   
   /*if(posX != goalx && posY != goaly) {
     checkQueue[0] = mazeDist[posX][posY];
@@ -322,10 +337,10 @@ void loop() {
  //Calibrations
   if(currentMillis - irMillis >= irDelay) {
     if(areIREmittersOn) {
-      sensorReadL = analogRead(irRecievePinL) - interL;
-      sensorReadFL = analogRead(irRecievePinFL) - interFL;
-      sensorReadFR = analogRead(irRecievePinFR) - interFR;
-      sensorReadR = analogRead(irRecievePinR) - interR;
+      sensorReadL = analogRead(irReceivePinL) - interL;
+      sensorReadFL = analogRead(irReceivePinFL) - interFL;
+      sensorReadFR = analogRead(irReceivePinFR) - interFR;
+      sensorReadR = analogRead(irReceivePinR) - interR;
 
       sensorReadL = map(sensorReadL, 0, mappedL, 0, 500) + 20;
       sensorReadFL = map(sensorReadFL, 0, 1000, 0, 500);
@@ -333,7 +348,7 @@ void loop() {
       sensorReadR = pow(map(sensorReadR, 0, mappedR, 0, 500),1.1);
 
       if(sensorReadFL >= readingWallFront || sensorReadFR >= readingWallFront) {
-        wallFront = true;
+        wallFront = true;//^ could be changed to 'if(sensorReadFL + sensorRead FR >= 2 * readingWallFront)'
       }
       else {
         wallFront = false;
@@ -359,10 +374,10 @@ void loop() {
       areIREmittersOn = false;
     }
     else {
-      interL = analogRead(irRecievePinL);
-      interFL =  analogRead(irRecievePinFL);
-      interFR =  analogRead(irRecievePinFR);
-      interR =  analogRead(irRecievePinR);
+      interL = analogRead(irReceivePinL);
+      interFL =  analogRead(irReceivePinFL);
+      interFR =  analogRead(irReceivePinFR);
+      interR =  analogRead(irReceivePinR);
       
       analogWrite(irEmitPinL, 255);
       analogWrite(irEmitPinFL, 255);
@@ -755,3 +770,32 @@ void rightEncoderEvent() {
     }
   }
 }
+
+void setInitialInter(int samp) {
+  int sumL, sumFL, sumFR, sumR = 0;
+    
+  setEmitterState(0);
+
+  for(int i = 1; i >= samp; i++) {
+    sumL += analogRead(irReceivePinL);
+    sumFL += analogRead(irReceivePinFL);
+    sumFR += analogRead(irReceivePinFR);
+    sumR += analogRead(irReceivePinR);
+  }
+  
+  interL = sumL / samp;
+  interFL = sumFL / samp;
+  interFR = sumFR / samp;
+  interR = sumR / samp;
+}
+
+void setEmitterState(int pow){
+  analogWrite(irEmitPinL, pow);
+  analogWrite(irEmitPinFL, pow);
+  analogWrite(irEmitPinFR, pow);
+  analogWrite(irEmitPinR, pow);
+
+  delay(10);
+  }
+
+
