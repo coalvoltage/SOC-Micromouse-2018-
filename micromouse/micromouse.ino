@@ -305,6 +305,7 @@ void loop() {
     countLRASaved = countLRA;
   }
   
+  /*if(posX != goalx && posY != goaly) {
   if(posX != goalx && posY != goaly) {
     checkQueue[0] = mazeDist[posX][posY];
     checkSize = 1;
@@ -330,7 +331,7 @@ void loop() {
     
   }
   //finds interference and reads
-
+*/
  //Calibrations
   if(currentMillis - irMillis >= irDelay) {
     if(areIREmittersOn) {
