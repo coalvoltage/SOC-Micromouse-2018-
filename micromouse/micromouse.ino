@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 /*  
  *  Micromouse 2018
  *  UCR Robotics, Team: Straight 'Outta Cheddar
@@ -45,72 +44,122 @@ int readingWallLeft, readingWallRight, readingWallFront = 0;//threshold sensor r
 
 //Locomotion vars:
   //directional commands, used in int userCommand:
-=======
->>>>>>> 42c8e06bfa65a296a4ccf23e99228cb60d8e4912
 #define USERBRK 0
 #define USERFOR 1
 #define USERREV 2
 #define USERLEF 3
 #define USERRIG 4
+#define USERINV 5
+#define USERRTU 6
 
-//maze specs
-int sizeX = 16;
-int sizeY = 16;
+int userCommand = USERBRK;
 
-int goalx = sizeX/2;
-int goaly = sizeY/2;
-
-int mazeDist[sizeX][sizeY];
-int mazeWalls[sizeX][sizeY];
-
-int checkQueue[sizeX * sizeY];
+bool isTurning = false;//not in control structure
 
 
-bool goalFound = false;
+//Calibration and speed controls:
+
+int initSamples = 10;//number of interference samples on startup
+
+int speedMaxLeft = 255;//ceiling of motor output
+int speedMaxRight = 255;
+int speedLeft = 0;//actual speed
+int speedRight = 0;
+int recoverSpeedL;
+int recoverSpeedR;
+  //mapped values
+int mappedL = 1000;//!should not be hardcoded
+int mappedR = 1000;//!should not be hardcoded
+//const int speedREV = 0;
+//const int speedFOR = 255;
+const int speedNEU = 127;
+
+  //steady-state interference:
+int interL, interFL, interFR, interR;
+
+  //PID and corrections:
+const double kP = 0.15;
+//const double kI = 0.0;
+//const double kD = 0.0;
+
+//const int sensorReadCorrectionBoundL = 30;
+//const int sensorReadCorrectionBoundR = 30;
+int displacementReadings;
+
+  //interupts
+volatile long countLRA = 0;
+volatile long countRRA = 0;
+
+volatile long countLRASaved = 0;
+volatile long countRRASaved = 0;
+
+volatile long countTempTicks;
+/*estimated measurements
+ * 1 cell step = 500 ticks
+ * 1 90 degree turn = 175 ticks (ps includes both sides)
+ * 
+ */
+long currentLRABound = 450;//not used
+long currentRRABound = 450;//not used
+//175
+long currentTurnBound = 170;
+long currentFullBound = 350;
+//timer values
+unsigned long blinkerMillis = 0;
+unsigned long irMillis = 0;
+unsigned long infoMillis = 0;
+unsigned long actionMillis = 0;
+unsigned long correctionMillis = 5;
+unsigned long currentMillis;
+
+    //delays:
+const unsigned long blinkerDelay = 1000;
+
+const unsigned long irDelay = 10;
+bool areIREmittersOn = true;
+
+const unsigned long infoDelay = 1000;//delay between debug updates
+const unsigned long correctionDelay = 10;//delay between speed updates
+const unsigned long actionDelay = 2000;
+const unsigned long breakDelay = 1000;
 
 
-//pins
-int irRecievePinL = A7;
-int irRecievePinFL = A6;
-int irRecievePinFR = A5;
-int irRecievePinR = A4;
+//Solver vars
+int mazeDist[SIZEX][SIZEY];
+int mazeWalls[SIZEX][SIZEY];
 
-int irEmitPinL = 23;
-int irEmitPinFL = 22;
-int irEmitPinFR = 17;
-int irEmitPinR = 16;
+int checkQueue[SIZEX * SIZEY];
+int checkTempValue;
+int checkSize = 0;
 
-int forwardPinL = 6;
-int reversePinL = 5;
-int forwardPinR = 4;
-int reversePinR = 3;
+bool wallRight, wallBack, wallLeft, wallFront = false;
 
-int aPinL = 7;
-int bPinL = 8;
-int aPinR = 9;
-int bPinR = 10;
+bool routeFound = false;
 
-//calculations
-int speedCounter = 0;
+int posX = 0;//corresponds to BOTTOM LEFT
+int posY = 0;
 
-int speedMax = 0;
-int speedMaxLeft = 0;
-int speedMaxRight = 0;
-int speedLeft = 100;
-int speedRight = 100;
+/*
+ * Up = 1
+ * Right = 2
+ * Down = 3
+ * Left = 4
+ */
+char mouseOrient = 1;
 
-int userCommand = 0;
-int sensorReadL, sensorReadFL, sensorReadFR, sensorReadR;
+bool switchMove = false;
+bool actionFinished = true;
+bool actionLeft = false;
+bool actionRight = false;
 
-int inter = 0;
+bool recoveryMode = false;
+
+
 
 //function declarations
   //mouse movements
-void moveForward(int pinFor, int pinRev, int motSpeed);
-void moveBackwards(int pinFor, int pinRev, int motSpeed);
 void moveBreak(int pinFor, int pinRev);
 
-<<<<<<< HEAD
 void turnLeft(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
 void turnRight(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
 
@@ -135,46 +184,35 @@ void rightEncoderEvent();
 
 //Debug vars:
 char keyboardInput = '\0';
-=======
-void turnLeft(int pinForL, int pinRevL, int pinForR, int pinRevR, int motSpeed);
-void turnRight(int pinForL, int pinRevL, int pinForR, int pinRevR, int motSpeed);
->>>>>>> 42c8e06bfa65a296a4ccf23e99228cb60d8e4912
 
-void moveWheels(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
 
-void moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
-  //ir functions
-int findLightInterference(int rL, int rFL, int rFR, int rR, int eL, int eFL, int eFR, int eR);
 
 void setup() {
-  //define pins
-  //encoder pins
+  Serial1.begin(9600);//Serial is used for USB, Serial1 is used for HC059(Bluetooth)
+  //Define pins:
+    //encoder pins
   pinMode(aPinL, INPUT);
   pinMode(bPinL, INPUT);
   pinMode(aPinR, INPUT);
   pinMode(bPinR, INPUT);
-  
-  attachInterupt(
-  
-  //motor control pins
+    //motor control pins:
   pinMode(forwardPinL, OUTPUT);
   pinMode(reversePinR, OUTPUT);
   pinMode(forwardPinL, OUTPUT);
   pinMode(reversePinR, OUTPUT);
-
-  //ir receiver pins
-  pinMode(irRecievePinL, INPUT);
-  pinMode(irRecievePinFL, INPUT);
-  pinMode(irRecievePinFR, INPUT);
-  pinMode(irRecievePinR, INPUT);
   
-  //ir emitter pins
+  pinMode(irReceivePinL, INPUT);
+  pinMode(irReceivePinFL, INPUT);
+  pinMode(irReceivePinFR, INPUT);
+  pinMode(irReceivePinR, INPUT);
+  
   pinMode(irEmitPinL, OUTPUT);
   pinMode(irEmitPinFL, OUTPUT);
   pinMode(irEmitPinFR, OUTPUT);
   pinMode(irEmitPinR, OUTPUT);
+  
+  pinMode(ledPin, OUTPUT);
 
-<<<<<<< HEAD
 
   //attachInterupts for motor edge counts:
   attachInterrupt(digitalPinToInterrupt(aPinL), leftEncoderEvent, CHANGE);
@@ -238,26 +276,10 @@ void setup() {
   }
 
 
-=======
-  //find interference
-  inter = findLightInterference(irRecievePinL, irRecievePinFL, irRecievePinFR, irRecievePinR, irEmitPinL, irEmitPinFL, irEmitPinFR, irEmitPinR);
 
-  //setup maze vars
-  for(int i = 0; i < sizeX/2; i++) {
-	  for(int j = 0; j < sizeY/2; j++) {
-      mazeDist[i][j] = sizeX - i - j - 2;
-      mazeDist[sizeX - i - 1][sizeY - j - 1] = sizeX - i - j - 2;
-      mazeDist[i][sizeY - j - 1] = sizeX - i - j - 2;
-      mazeDist[sizeX - i - 1][j] = sizeX - i - j - 2;
-	  }
-  }
-  //set bounds
-  
-}
->>>>>>> 42c8e06bfa65a296a4ccf23e99228cb60d8e4912
+
 
 void loop() {
-<<<<<<< HEAD
  
   currentMillis = millis();//time set
   
@@ -381,42 +403,216 @@ void loop() {
       }
     }
     correctionMillis = currentMillis;//reset timer
-=======
-  sensorReadL = analogRead(irRecievePinL) - inter;
-  sensorReadFL = analogRead(irRecievePinFL) - inter;
-  sensorReadFR = analogRead(irRecievePinFR) - inter;
-  sensorReadR = analogRead(irRecievePinR) - inter;
-  
-  if(!goalFound) {
-	  
->>>>>>> 42c8e06bfa65a296a4ccf23e99228cb60d8e4912
   }
 
 
   
-  
-  
-  /*if(sensorReadFL > sensorReadFR * 1.10) {
-    speedMaxLeft = speedMax * 0.9;
-    speedMaxRight = speedMax;
+  //breaks after a cell or action is completed
+  if(recoveryMode) {
+    if(userCommand == USERBRK && currentMillis - actionMillis >= actionDelay) {
+      userCommand = USERREV;
+      switchMove = false;
+      actionFinished = false;
+      countLRASaved = countLRA;
+      actionMillis = currentMillis;
+      recoverSpeedL = speedLeft;
+      recoverSpeedR = speedRight;
+      speedLeft = speedMaxLeft;
+      speedRight = (speedMaxRight * 3 ) /4;
+    }
+    else if(userCommand == USERREV) {
+      if(countLRASaved - countLRA >= currentLRABound || countLRA - countLRASaved >= currentLRABound) {
+        actionFinished = true;
+        recoveryMode = false;
+        speedLeft = speedMaxLeft;
+        speedRight = speedMaxRight;
+      }
+    }
   }
-  else if(sensorReadFL * 1.10 < sensorReadFR) {
-    speedMaxLeft = speedMax;
-    speedMaxRight = speedMax * 0.9;
+  else if(!actionFinished) {
+    if(userCommand == USERRIG) {
+      if(countLRASaved - countLRA  >= currentTurnBound || countLRA - countLRASaved >= currentTurnBound) {
+        actionLeft = true;
+        leftMotor(forwardPinL, reversePinL, 0, 0);
+      }
+      else{
+        leftMotor(forwardPinL, reversePinL, speedLeft,0);
+      }
+      if(countRRASaved - countRRA  >= currentTurnBound || countRRA - countRRASaved >= currentTurnBound) {
+        actionRight = true;
+        rightMotor(forwardPinR, reversePinR, 0, 0);
+      }
+      else {
+        rightMotor(forwardPinR, reversePinR, 0, speedRight);
+      }
+      if(actionRight && actionLeft) {
+        actionFinished = true;
+        isTurning = false;
+        speedLeft = speedMaxLeft;
+        speedRight = speedMaxRight;
+      }
+    }
+    else if(userCommand == USERLEF) {
+      if(countLRASaved - countLRA  >= currentTurnBound || countLRA - countLRASaved >= currentTurnBound) {
+        actionLeft = true;
+        leftMotor(forwardPinL, reversePinL, 0, 0);
+      }
+      else {
+        leftMotor(forwardPinL, reversePinL, 0,speedLeft);
+      }
+      if(countRRASaved - countRRA  >= currentTurnBound || countRRA - countRRASaved >= currentTurnBound) {
+        actionRight = true;
+        rightMotor(forwardPinR, reversePinR, 0 ,0);
+      }
+      else {
+        rightMotor(forwardPinR, reversePinR, speedRight,0);
+      }
+      if(actionRight && actionLeft) {
+        actionFinished = true;
+        isTurning = false;
+        speedLeft = speedMaxLeft;
+        speedRight = speedMaxRight;
+      }
+    }
+    else if(userCommand == USERINV) {
+      if((abs(countLRASaved - countLRA)>= currentFullBound)) {
+        actionFinished = true;
+        isTurning = false;
+        speedLeft = speedMaxLeft;
+        speedRight = speedMaxRight;
+      }
+    }
+    else if(userCommand == USERFOR) {
+      if(countLRASaved - countLRA >= currentLRABound || countLRA- countLRASaved >= currentLRABound) {
+        actionFinished = true;
+      }
+      else if(wallFront) {
+        actionFinished = true;
+      }
+    }
+    else if(userCommand == USERREV) {
+      if(countLRASaved - countLRA >= currentLRABound || countLRA - countLRASaved >= currentLRABound) {
+        actionFinished = true;
+      }
+    }
+    else if(userCommand == USERBRK) {
+      if(currentMillis - actionMillis >= breakDelay) {
+        actionFinished = true;
+      }
+    }
+    
+    if (currentMillis - actionMillis >= actionDelay) {
+      if(userCommand != USERBRK) {
+        recoveryMode = true;
+        countLRASaved = countLRA;
+        actionMillis = currentMillis;
+        userCommand = USERBRK;
+        actionFinished = true;
+      }
+    }
+  }
+  else if(switchMove) {
+    if(!wallLeft && wallFront) {
+      userCommand = USERLEF;
+      switchMove = false;
+      actionFinished = false;
+      actionLeft = false;
+      actionRight = false;
+      countLRASaved = countLRA;
+      countRRASaved = countRRA;
+      actionMillis = currentMillis;
+      isTurning = true;
+    }
+    else if(!wallRight && wallFront) {
+      userCommand = USERRIG;
+      switchMove = false;
+      actionFinished = false;
+      actionLeft = false;
+      actionRight = false;
+      countLRASaved = countLRA;
+      countRRASaved = countRRA;
+      actionMillis = currentMillis;
+      isTurning = true;
+    }
+    else if(wallFront) {
+      userCommand = USERINV;
+      switchMove = false;
+      actionFinished = false;
+      actionLeft = false;
+      actionRight = false;
+      countLRASaved = countLRA;
+      actionMillis = currentMillis;
+      isTurning = true;
+    }
+    else {
+      userCommand = USERFOR;
+      switchMove = false;
+      actionFinished = false;
+      countLRASaved = countLRA;
+      actionMillis = currentMillis;
+    }
   }
   else {
-    speedMaxRight = speedMax;
-    speedMaxLeft = speedMax;
-  }*/
+      userCommand = USERBRK;
+    switchMove = true;
+    actionFinished = false;
+    actionMillis = currentMillis;
+  }
+  //userCommand = USERBRK;
+  if(userCommand != USERLEF && userCommand != USERRIG) {
+    moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+  }
   
-  
-  
-  userCommand = USERFOR;
-  moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
-  
+  if(currentMillis - infoMillis >= infoDelay) {
+    Serial1.print("LeftSpeed: ");
+    Serial1.println(speedLeft);
+    Serial1.print("RightSpeed: ");
+    Serial1.println(speedRight);
+    Serial1.print("I am :");
+    if(userCommand == USERFOR) {
+      Serial1.println("going forward.");
+    }
+    else if(recoveryMode) {
+      Serial1.println("in recoveryMode.");
+    }
+    else if(userCommand == USERINV) {
+      Serial1.println("turning around.");
+    }
+    else if(userCommand == USERRIG) {
+      Serial1.println("turning right.");
+    }
+    else if(userCommand == USERLEF) {
+      Serial1.println("turning left.");
+    }
+    /*Serial1.print("TicksL: ");
+    Serial1.println(countLRA);
+    Serial1.print("TicksR: ");
+    Serial1.println(countRRA);*/
+    Serial1.print("Right: ");
+    Serial1.println(sensorReadR);
+    Serial1.print("Interference: ");
+    Serial1.println(interR);
+    Serial1.print("RightTop: ");
+    Serial1.println(sensorReadFR);
+    Serial1.print("Interference: ");
+    Serial1.println(interFR);
+    Serial1.print("LeftTop: ");
+    Serial1.println(sensorReadFL);
+    Serial1.print("Interference: ");
+    Serial1.println(interFL);
+    Serial1.print("Left: ");
+    Serial1.println(sensorReadL);
+    Serial1.print("Interference: ");
+    Serial1.println(interL);
+    infoMillis = currentMillis;
+  }
 }
 
-//function definitions
+
+
+//Function definitions:
+
+  //simple locomotion:
 void moveForward(int pinFor, int pinRev, int motSpeed) {
     analogWrite(pinFor, motSpeed);
     digitalWrite(pinRev, LOW);
@@ -428,20 +624,33 @@ void moveBackwards(int pinFor, int pinRev, int motSpeed) {
 }
 
 void moveBreak(int pinFor, int pinRev) {
-    digitalWrite(pinFor, LOW);
-    digitalWrite(pinRev, LOW);
+    analogWrite(pinFor, speedNEU);
+    analogWrite(pinRev, speedNEU);
 }
 
 
-void turnLeft(int pinForL, int pinRevL, int pinForR, int pinRevR, int motSpeed) {
-  moveWheels(0, motSpeed, pinForL, pinRevL, pinForR, pinRevR);
+void turnLeft(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
+  analogWrite(pinForL, 0);
+  analogWrite(pinRevL, spL);
+  analogWrite(pinForR, 0);
+  analogWrite(pinRevR, spR);
 }
 
-void turnRight(int pinForL, int pinRevL, int pinForR, int pinRevR, int motSpeed) {
-  moveWheels(motSpeed, 0, pinForL, pinRevL, pinForR, pinRevR);
+void turnRight(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
+  analogWrite(pinForL, spL);
+  analogWrite(pinRevL, 0);
+  analogWrite(pinForR, spR);
+  analogWrite(pinRevR, 0);
 }
 
-void moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR) {
+void turnHalfCircle(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
+  analogWrite(pinForL, 0);
+  analogWrite(pinRevL, spL);
+  analogWrite(pinForR, 0);
+  analogWrite(pinRevR, spR);
+}
+
+void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int reversePinL,int forwardPinR,int reversePinR) {
   switch(userCommand) {
     case USERBRK:
     moveBreak(forwardPinL, reversePinL);
@@ -449,46 +658,57 @@ void moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, for
     break;
     
     case USERFOR:
-    moveWheels(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+    moveWheelsFor(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
     break;
     
     case USERREV:
-    moveWheels(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+    moveWheelsRev(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
     break;
     
     case USERLEF:
-    turnLeft(forwardPinL, reversePinL, forwardPinR, reversePinR, speedRight);
+    turnLeft(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
     break;
     
     case USERRIG:
-    turnRight(forwardPinL, reversePinL, forwardPinR, reversePinR, speedLeft);
+    turnRight(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
+    break;
+
+    case USERINV:
+    turnHalfCircle(speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
     break;
     
     default:
-	moveBreak(forwardPinL, reversePinL);
+    moveBreak(forwardPinL, reversePinL);
     moveBreak(forwardPinR, reversePinR);
     break;
   }
 }
 
-void moveWheels(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
-    if(spL > 0) {
-      moveForward(pinForL, pinRevL, spL);
-    }
-    else {
-      moveBackwards(pinForL, pinRevL, -1 * spL);
-    }
-
-    if(spR > 0) {
-      moveForward(pinForR, pinRevR, spR);
-    }
-    else {
-      moveBackwards(pinForR, pinRevR, -1 * spR);
-    }
+void moveWheelsFor(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
+  analogWrite(pinForL, spL);
+  analogWrite(pinRevL, 0);
+  analogWrite(pinForR, 0);
+  analogWrite(pinRevR, spR);
 }
 
+void moveWheelsRev(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR) {
+  analogWrite(pinForL, 0);
+  analogWrite(pinRevL, spL);
+  analogWrite(pinForR, spR);
+  analogWrite(pinRevR, 0);
+}
+
+void leftMotor(int pinF,int pinR, int sp1,int sp2) {
+  analogWrite(pinF, sp1);
+  analogWrite(pinR, sp2);
+}
+
+void rightMotor(int pinF,int pinR, int sp1,int sp2) {
+  analogWrite(pinF, sp2);
+  analogWrite(pinR, sp1);
+}
 void mazeSolving() {
-	/*distmaze := int[16][16]
+  /*distmaze := int[16][16]
 wallmaze := int[16][16]
 goal := (8,8)
 start := (0,0)
@@ -509,7 +729,6 @@ while(start != goal)
 return ideal path*/
 }
 
-<<<<<<< HEAD
 
 
 void leftEncoderEvent() {
@@ -565,28 +784,3 @@ void setEmitterState(int val, int del){
   delay(del);
   }
   
-=======
-int findLightInterference(int rL, int rFL, int rFR, int rR, int eL, int eFL, int eFR, int eR) {
-	int interArray[4];
-	int minInter;
-	analogWrite(eL, LOW);
-	analogWrite(eFL, LOW);
-	analogWrite(eFR, LOW);
-	analogWrite(eR, LOW);
-	
-	delay(100);
-	
-	interArray[0] = analogRead(rL);
-	interArray[1] = analogRead(rFL);
-	interArray[2] = analogRead(rFR);
-	interArray[3] = analogRead(rR);
-	
-	minInter = interArray[0]
-	for(int i = 1; i < 4; i++) {
-		if(minVal > interArray[i]) {
-			minInter = interArray[i];
-		}
-	}
-	return minInter;
-}
->>>>>>> 42c8e06bfa65a296a4ccf23e99228cb60d8e4912
