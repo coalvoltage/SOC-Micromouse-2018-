@@ -32,9 +32,9 @@ int goalx = sizeX/2;
 int goaly = sizeY/2;
 
 int mazeDist[SIZEX][SIZEY];
-int mazeWalls[SIZEX][SIZEY];
+bool  mazeWalls[SIZEX][SIZEY];
 
-int checkQueue[SIZEX * SIZEY];
+int checkQueue[SIZEX * SIZEY];//
 int checkTempValue;
 int checkSize = 0;
 
@@ -201,11 +201,15 @@ void setup() {
   interFL =  analogRead(irRecievePinFL);
   interFR =  analogRead(irRecievePinFR);
   interR =  analogRead(irRecievePinR);
+
+  
+  
   //setup maze vars
   for(int i = 0; i < sizeX/2; i++) {
 	  for(int j = 0; j < sizeY/2; j++) {
-      mazeDist[i][j] = sizeX - i - j - 2;
-      mazeDist[sizeX - i - 1][sizeY - j - 1] = sizeX - i - j - 2;
+      int val = sizeX - i - j - 2;
+      mazeDist[i][j] = val;
+      mazeDist[sizeX - i - 1][sizeY - j - 1] = sizeX - i - j -;
       mazeDist[i][sizeY - j - 1] = sizeX - i - j - 2;
       mazeDist[sizeX - i - 1][j] = sizeX - i - j - 2;
 	  }
@@ -236,6 +240,9 @@ void setup() {
   //attachInterupts
   attachInterrupt(digitalPinToInterrupt(aPinL),leftEncoderEvent, CHANGE);
   attachInterrupt(digitalPinToInterrupt(aPinR),rightEncoderEvent, CHANGE);
+
+
+
 }
 
 void loop() {
