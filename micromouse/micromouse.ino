@@ -102,7 +102,7 @@ bool recoveryMode = false;
 
 int interL, interFL, interFR, interR;
 
-const double kP = 0.15;
+const double kP = 0.2;
 
 
 //interupts
@@ -367,7 +367,7 @@ void loop() {
   }
   
   //breaks after a cell or action is completed
-  if(recoveryMode) {
+  /*if(recoveryMode) {
     if(userCommand == USERBRK && currentMillis - actionMillis >= actionDelay) {
       userCommand = USERREV;
       switchMove = false;
@@ -387,8 +387,8 @@ void loop() {
         speedRight = speedMaxRight;
       }
     }
-  }
-  else if(!actionFinished) {
+  }*/
+  if(!actionFinished) {
     if(userCommand == USERRIG) {
       if(countLRASaved - countLRA  >= currentTurnBound || countLRA - countLRASaved >= currentTurnBound) {
         actionLeft = true;
@@ -405,10 +405,10 @@ void loop() {
         rightMotor(forwardPinR, reversePinR, 0, speedRight);
       }
       if(actionRight && actionLeft) {
-        actionFinished = true;
-        isTurning = false;
         speedLeft = speedMaxLeft;
         speedRight = speedMaxRight;
+        actionFinished = true;
+        isTurning = false;
       }
     }
     else if(userCommand == USERLEF) {
@@ -427,18 +427,16 @@ void loop() {
         rightMotor(forwardPinR, reversePinR, speedRight,0);
       }
       if(actionRight && actionLeft) {
-        actionFinished = true;
-        isTurning = false;
         speedLeft = speedMaxLeft;
         speedRight = speedMaxRight;
+        actionFinished = true;
+        isTurning = false;
       }
     }
     else if(userCommand == USERINV) {
       if((abs(countLRASaved - countLRA)>= currentFullBound)) {
         actionFinished = true;
         isTurning = false;
-        speedLeft = speedMaxLeft;
-        speedRight = speedMaxRight;
       }
     }
     else if(userCommand == USERFOR) {
