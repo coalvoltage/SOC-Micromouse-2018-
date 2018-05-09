@@ -128,12 +128,12 @@ unsigned long blinkerMillis = 0;
 unsigned long irMillis = 0;
 unsigned long infoMillis = 0;
 unsigned long actionMillis = 0;
-unsigned long correctionMillis = 5;
+unsigned long correctionMillis = 10;
 unsigned long currentMillis;
 
 const unsigned long blinkerDelay = 1000;
 
-const unsigned long irDelay = 10;
+const unsigned long irDelay = 1;
 bool areIREmittersOn = true;
 
 const unsigned long infoDelay = 1000;
@@ -292,6 +292,11 @@ void loop() {
   //finds interference and reads
   if(currentMillis - irMillis >= irDelay) {
     if(areIREmittersOn) {
+      analogWrite(irEmitPinL, 0);
+      analogWrite(irEmitPinFL, 0);
+      analogWrite(irEmitPinFR, 0);
+      analogWrite(irEmitPinR, 0);
+      
       sensorReadL = analogRead(irRecievePinL) - interL;
       sensorReadFL = analogRead(irRecievePinFL) - interFL;
       sensorReadFR = analogRead(irRecievePinFR) - interFR;
@@ -321,11 +326,6 @@ void loop() {
         wallRight = false;
       }
       
-      analogWrite(irEmitPinL, 0);
-      analogWrite(irEmitPinFL, 0);
-      analogWrite(irEmitPinFR, 0);
-      analogWrite(irEmitPinR, 0);
-      
       areIREmittersOn = false;
     }
     else {
@@ -344,23 +344,32 @@ void loop() {
     irMillis = currentMillis;
   }
 
-  if(currentMillis - correctionMillis > correctionDelay) {
-    if(sensorReadL > sensorReadR && areIREmittersOn && wallLeft && wallRight && userCommand == USERFOR) {
+  if(currentMillis - correctionMillis > correctionDelay && areIREmittersOn ) {
+      sensorReadL = analogRead(irRecievePinL) - interL;
+      sensorReadFL = analogRead(irRecievePinFL) - interFL;
+      sensorReadFR = analogRead(irRecievePinFR) - interFR;
+      sensorReadR = analogRead(irRecievePinR) - interR;
+
+      sensorReadL = map(sensorReadL, 0, mappedL, 0, 500) + 20;
+      sensorReadFL = map(sensorReadFL, 0, 1000, 0, 500);
+      sensorReadFR = map(sensorReadFR, 0, 1000, 0, 500);
+      sensorReadR = pow(map(sensorReadR, 0, mappedR, 0, 500),1.1);
+    if(sensorReadL > sensorReadR && areIREmittersOn && wallLeft && wallRight /*&& userCommand == USERFOR*/) {
       displacementReadings = sensorReadL - sensorReadR;
       if(displacementReadings >= 0) {
         speedLeft = speedMaxLeft + (displacementReadings * kP);
         speedRight = speedMaxRight - (displacementReadings * kP);
-        //Serial1.println("displacementReadings: left");
-        //Serial1.println(displacementReadings);
+        Serial1.println("displacementReadings: left");
+        Serial1.println(displacementReadings);
       }
     }
-    else if (sensorReadL < sensorReadR && areIREmittersOn && wallLeft && wallRight && userCommand == USERFOR){
+    else if (sensorReadL < sensorReadR && areIREmittersOn && wallLeft && wallRight /*&& userCommand == USERFOR*/){
       displacementReadings = sensorReadR - sensorReadL;
-      if(displacementReadings >= 0) {
+      if(displacementReadings >= 20) {
         speedLeft = speedMaxLeft - (displacementReadings * kP);
         speedRight = speedMaxRight + (displacementReadings * kP);
-        //Serial1.println("displacementReadings: right");
-        //Serial1.println(displacementReadings);
+        Serial1.println("displacementReadings: right");
+        Serial1.println(displacementReadings);
       }
     }
     correctionMillis = currentMillis;
@@ -514,13 +523,13 @@ void loop() {
     actionFinished = false;
     actionMillis = currentMillis;
   }
-  //userCommand = USERBRK;
+  userCommand = USERBRK;
   if(userCommand != USERLEF && userCommand != USERRIG) {
     moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
   }
   
   if(currentMillis - infoMillis >= infoDelay) {
-    Serial1.print("LeftSpeed: ");
+    /*Serial1.print("LeftSpeed: ");
     Serial1.println(speedLeft);
     Serial1.print("RightSpeed: ");
     Serial1.println(speedRight);
@@ -539,7 +548,7 @@ void loop() {
     }
     else if(userCommand == USERLEF) {
       Serial1.println("turning left.");
-    }
+    }*/
     /*Serial1.print("TicksL: ");
     Serial1.println(countLRA);
     Serial1.print("TicksR: ");
