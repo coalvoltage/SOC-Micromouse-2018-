@@ -916,7 +916,7 @@ void cellUpdate(int cell) {
     }
     //left
     if(testCell(locX - 1, locY) && !mazeWalls[locX + SIZEX - 1][locY]) {
-      pushQueue(cell - 1);
+     pushQueue(cell - 1);
     }
     
   }
