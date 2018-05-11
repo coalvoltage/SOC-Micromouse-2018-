@@ -34,13 +34,9 @@ int goaly = 7;
 int mazeDist[SIZEX][SIZEY];
 bool  mazeWalls[2 * SIZEX][SIZEY];//X indices 0 to SIZEX - 1 are horizontal, SIZEX - (2 * SIZEX) - 1 are vertical. 
 
-int checkQueue[SIZEX * SIZEY];//built as a stack, holds pending cell update addresses
+int checkQueue[SIZEX * SIZEY];
 int checkTempValue;
-int checkSize = 0;//used to keep track of top of stack
-
-int path[2 *SIZEX * SIZEY];//stores path taken, used for speedrunning
-
-int lastCell = 0;//stores cell mouse was in before last action
+int checkSize = 0;
 
 bool goalFound = false;
 
@@ -549,15 +545,6 @@ void loop() {
 
   //Maze Solver
   if(actionFinished) {
-
-  //push current cell to path[] if new
-  if((posX * SIZEX) + posY != lastCell
-  //check if mouse is in goal tile:
-
-  if(posX == goalX && posY == goalY)
-    goalFound = true;
-
-    
   //scan walls:
     wallFront = sensorReadFL + sensorReadFR >= 2 * readingWallFront;
     wallRight = sensorReadR >= readingWallRight;
@@ -934,4 +921,4 @@ void cellUpdate(int cell) {
     
   }
 }
-//5/11/18
+//5/10/18
