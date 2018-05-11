@@ -161,6 +161,20 @@ void printWalls(bool addDist) {
          //Serial.print((sizeX - 1) - i);
       }
       
+=======
+      for(int q = 0; q < sizeX; q++) {
+      if(mazeWalls[sizeX +i][q]) 
+        Serial.print("|");
+
+      //add Dist if prompted
+      if((l == p/2) && addDist) {
+        Serial.print("   ");
+        Serial.print(mazeDist[i][q]);
+        }
+      
+      Serial.print("\t");
+      }
+>>>>>>> 0b34201848d241216f4d7f7f71835845db4a8825
     Serial.println();
     }
     

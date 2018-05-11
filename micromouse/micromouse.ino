@@ -28,11 +28,11 @@ bool isTurning = false;
 int sizeX = SIZEX;
 int sizeY = SIZEY;
 
-int goalx = sizeX/2;
-int goaly = sizeY/2;
+int goalx = 7;
+int goaly = 7;
 
 int mazeDist[SIZEX][SIZEY];
-bool  mazeWalls[SIZEX][SIZEY];//X indices 0 to SIZEX - 1 are horizontal, SIZEX - (2 * SIZEX) - 1 are vertical. 
+bool  mazeWalls[2 * SIZEX][SIZEY];//X indices 0 to SIZEX - 1 are horizontal, SIZEX - (2 * SIZEX) - 1 are vertical. 
 
 int checkQueue[SIZEX * SIZEY];
 int checkTempValue;
