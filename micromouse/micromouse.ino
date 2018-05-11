@@ -40,8 +40,8 @@ int checkSize = 0;
 
 bool goalFound = false;
 
-int readingWallLeft = 130;
-int readingWallRight = 130;
+int readingWallLeft = 140;
+int readingWallRight = 140;
 int readingWallFront = 300;
 //pins
 int irRecievePinL = A5;
@@ -136,7 +136,7 @@ const unsigned long blinkerDelay = 1000;
 const unsigned long irDelay = 1;
 bool areIREmittersOn = true;
 
-const unsigned long infoDelay = 1000;
+const unsigned long infoDelay = 100;
 const unsigned long correctionDelay = 10;
 const unsigned long actionDelay = 2000;
 const unsigned long breakDelay = 1000;
@@ -163,7 +163,7 @@ void rightEncoderEvent();
 char keyboardInput = '0';
 
 void setup() {
-  Serial1.begin(9600);
+  Serial.begin(9600);
   //define pins
   //led pin
   pinMode(ledPin, OUTPUT);
@@ -253,8 +253,8 @@ void loop() {
     blinkerMillis = currentMillis;
   }
   
-  if(Serial1.available() > 0) {
-    keyboardInput = Serial1.read();
+  if(Serial.available() > 0) {
+    keyboardInput = Serial.read();
     if(keyboardInput == 'w') {
       userCommand = USERFOR;
     }
@@ -304,10 +304,10 @@ void loop() {
 
       sensorReadL = map(sensorReadL, 0, mappedL, 0, 500) + 20;
       sensorReadFL = map(sensorReadFL, 0, 1000, 0, 500);
-      sensorReadFR = map(sensorReadFR, 0, 1000, 0, 500);
+      sensorReadFR = map(pow(sensorReadFR,1.075) * 0.80, 0, 1000, 0, 500);
       sensorReadR = pow(map(sensorReadR, 0, mappedR, 0, 500),1.1);
 
-      if(sensorReadFL >= readingWallFront || sensorReadFR >= readingWallFront) {
+      if(sensorReadFL >= readingWallFront && sensorReadFR >= readingWallFront) {
         wallFront = true;
       }
       else {
@@ -345,31 +345,22 @@ void loop() {
   }
 
   if(currentMillis - correctionMillis > correctionDelay && areIREmittersOn ) {
-      sensorReadL = analogRead(irRecievePinL) - interL;
-      sensorReadFL = analogRead(irRecievePinFL) - interFL;
-      sensorReadFR = analogRead(irRecievePinFR) - interFR;
-      sensorReadR = analogRead(irRecievePinR) - interR;
-
-      sensorReadL = map(sensorReadL, 0, mappedL, 0, 500) + 20;
-      sensorReadFL = map(sensorReadFL, 0, 1000, 0, 500);
-      sensorReadFR = map(sensorReadFR, 0, 1000, 0, 500);
-      sensorReadR = pow(map(sensorReadR, 0, mappedR, 0, 500),1.1);
-    if(sensorReadL > sensorReadR && areIREmittersOn && wallLeft && wallRight /*&& userCommand == USERFOR*/) {
+    if(sensorReadL > sensorReadR && areIREmittersOn && wallLeft && wallRight && userCommand == USERFOR) {
       displacementReadings = sensorReadL - sensorReadR;
       if(displacementReadings >= 0) {
         speedLeft = speedMaxLeft + (displacementReadings * kP);
         speedRight = speedMaxRight - (displacementReadings * kP);
-        Serial1.println("displacementReadings: left");
-        Serial1.println(displacementReadings);
+        //Serial.println("displacementReadings: left");
+        //Serial.println(displacementReadings);
       }
     }
-    else if (sensorReadL < sensorReadR && areIREmittersOn && wallLeft && wallRight /*&& userCommand == USERFOR*/){
+    else if (sensorReadL < sensorReadR && areIREmittersOn && wallLeft && wallRight && userCommand == USERFOR){
       displacementReadings = sensorReadR - sensorReadL;
-      if(displacementReadings >= 20) {
+      if(displacementReadings >= 0) {
         speedLeft = speedMaxLeft - (displacementReadings * kP);
         speedRight = speedMaxRight + (displacementReadings * kP);
-        Serial1.println("displacementReadings: right");
-        Serial1.println(displacementReadings);
+        //Serial.println("displacementReadings: right");
+        //Serial.println(displacementReadings);
       }
     }
     correctionMillis = currentMillis;
@@ -449,7 +440,7 @@ void loop() {
       }
     }
     else if(userCommand == USERFOR) {
-      if(countLRASaved - countLRA >= currentLRABound || countLRA- countLRASaved >= currentLRABound) {
+      if(countLRASaved - countLRA >= currentLRABound || countLRA - countLRASaved >= currentLRABound) {
         actionFinished = true;
       }
       else if(wallFront) {
@@ -518,57 +509,57 @@ void loop() {
     }
   }
   else {
-      userCommand = USERBRK;
+    userCommand = USERBRK;
     switchMove = true;
     actionFinished = false;
     actionMillis = currentMillis;
   }
-  userCommand = USERBRK;
+  //userCommand = USERBRK;
   if(userCommand != USERLEF && userCommand != USERRIG) {
     moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
   }
   
   if(currentMillis - infoMillis >= infoDelay) {
-    /*Serial1.print("LeftSpeed: ");
-    Serial1.println(speedLeft);
-    Serial1.print("RightSpeed: ");
-    Serial1.println(speedRight);
-    Serial1.print("I am :");
+    Serial.print("LeftSpeed: ");
+    Serial.println(speedLeft);
+    Serial.print("RightSpeed: ");
+    Serial.println(speedRight);
+    Serial.print("I am :");
     if(userCommand == USERFOR) {
-      Serial1.println("going forward.");
+      Serial.println("going forward.");
     }
     else if(recoveryMode) {
-      Serial1.println("in recoveryMode.");
+      Serial.println("in recoveryMode.");
     }
     else if(userCommand == USERINV) {
-      Serial1.println("turning around.");
+      Serial.println("turning around.");
     }
     else if(userCommand == USERRIG) {
-      Serial1.println("turning right.");
+      Serial.println("turning right.");
     }
     else if(userCommand == USERLEF) {
-      Serial1.println("turning left.");
-    }*/
-    /*Serial1.print("TicksL: ");
-    Serial1.println(countLRA);
-    Serial1.print("TicksR: ");
-    Serial1.println(countRRA);*/
-    Serial1.print("Right: ");
-    Serial1.println(sensorReadR);
-    Serial1.print("Interference: ");
-    Serial1.println(interR);
-    Serial1.print("RightTop: ");
-    Serial1.println(sensorReadFR);
-    Serial1.print("Interference: ");
-    Serial1.println(interFR);
-    Serial1.print("LeftTop: ");
-    Serial1.println(sensorReadFL);
-    Serial1.print("Interference: ");
-    Serial1.println(interFL);
-    Serial1.print("Left: ");
-    Serial1.println(sensorReadL);
-    Serial1.print("Interference: ");
-    Serial1.println(interL);
+      Serial.println("turning left.");
+    }
+    Serial.print("TicksL: ");
+    Serial.println(countLRA);
+    Serial.print("TicksR: ");
+    Serial.println(countRRA);
+    Serial.print("Right: ");
+    Serial.println(sensorReadR);
+    Serial.print("Interference: ");
+    Serial.println(interR);
+    Serial.print("RightTop: ");
+    Serial.println(sensorReadFR);
+    Serial.print("Interference: ");
+    Serial.println(interFR);
+    Serial.print("LeftTop: ");
+    Serial.println(sensorReadFL);
+    Serial.print("Interference: ");
+    Serial.println(interFL);
+    Serial.print("Left: ");
+    Serial.println(sensorReadL);
+    Serial.print("Interference: ");
+    Serial.println(interL);
     infoMillis = currentMillis;
   }
 }
