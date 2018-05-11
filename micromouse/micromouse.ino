@@ -10,7 +10,7 @@
 #define SIZEY 16
 //mouse characteristics
 /*
- * Front = 1
+ * Up = 1
  * Right = 2
  * Down = 3
  * Left = 4
@@ -19,8 +19,8 @@
 char mouseOrient = 1;
 bool wallRight, wallBack, wallLeft, wallFront = false;
 
-int locationX = 0;
-int locationY = 0;
+int posX = 0;
+int posY = 0;
 
 bool settingVars = true;
 bool isTurning = false;
@@ -32,9 +32,9 @@ int goalx = sizeX/2;
 int goaly = sizeY/2;
 
 int mazeDist[SIZEX][SIZEY];
-bool  mazeWalls[SIZEX][SIZEY];
+bool  mazeWalls[SIZEX][SIZEY];//X indices 0 to SIZEX - 1 are horizontal, SIZEX - (2 * SIZEX) - 1 are vertical. 
 
-int checkQueue[SIZEX * SIZEY];//
+int checkQueue[SIZEX * SIZEY];
 int checkTempValue;
 int checkSize = 0;
 
@@ -209,7 +209,7 @@ void setup() {
 	  for(int j = 0; j < sizeY/2; j++) {
       int val = sizeX - i - j - 2;
       mazeDist[i][j] = val;
-      mazeDist[sizeX - i - 1][sizeY - j - 1] = sizeX - i - j -;
+      mazeDist[sizeX - i - 1][sizeY - j - 1] = sizeX - i - j -2;
       mazeDist[i][sizeY - j - 1] = sizeX - i - j - 2;
       mazeDist[sizeX - i - 1][j] = sizeX - i - j - 2;
 	  }
@@ -241,8 +241,13 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(aPinL),leftEncoderEvent, CHANGE);
   attachInterrupt(digitalPinToInterrupt(aPinR),rightEncoderEvent, CHANGE);
 
-
-
+  //set all walls to false:
+for(int i = 0; i < (2 * sizeX); i++) {
+  for(int j = 0; j < sizeY; j++) {
+    mazeWalls[i][j] = false;
+    }
+  }
+  
 }
 
 void loop() {
@@ -534,7 +539,71 @@ void loop() {
   if(userCommand != USERLEF && userCommand != USERRIG) {
     moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
   }
+
+
+
+
+  //Maze Solver
+  if(actionFinished) {
+  //scan walls:
+    wallFront = sensorReadFL + sensorReadFR >= 2 * readingWallFront;
+    wallRight = sensorReadR >= readingWallRight;
+    wallLeft = sensorReadL >= readingWallLeft;
   
+  //set mazeWalls[][] using info from wall scan:
+  int wallOrient = 0;//states what wall is being passed to a function  
+    //left:
+  wallOrient = (mouseOrient + 3) % 4;//gives dir of wall facing left sensor
+  if(testWall(posX, posY, wallOrient))
+    setMazeWall(wallOrient, wallLeft);
+
+  //front:
+  wallOrient = mouseOrient;//no addition for front
+  if(testWall(posX, posY, wallOrient))
+    setMazeWall(wallOrient, wallFront);
+
+  //right:
+  wallOrient = (mouseOrient + 1) % 4;//gives dir of wall facing right sensor
+  if(testWall(posX, posY, wallOrient))
+    setMazeWall(wallOrient, wallRight);
+
+  //now, update mazeDist using checkQueue
+  if(mazeDist[posX][posY] != findNeighborLow(posX, posY, 'v') + 1) {
+    pushQueue(posX * SIZEX + posY);
+    while(checkSize != 0) {
+      cellUpdate(popQueue());
+    }
+  }
+
+  //finally, choose new direction:
+  //(choose lowest valued neighbor with tiebreaking priority: left, down, right, then up)
+  int newOrient = findNeighborLow(posX, posY, 'o');
+  int toTurn = (newOrient - mouseOrient + 4) % 4;
+
+  switch(toTurn) {
+    case 0:
+      userCommand = USERFOR;
+      break;
+    case 1:
+      userCommand = USERRIG;
+      break;
+    case 2:
+      userCommand = USERINV;
+      break;
+    case 3:
+      userCommand = USERLEF;
+      break;
+    default:
+    //it should always be safe to go back a cell if there are errors
+      userCommand = USERINV;
+  }
+
+  //update orientation:
+  mouseOrient = newOrient;
+  
+}
+
+
   if(currentMillis - infoMillis >= infoDelay) {
     /*Serial1.print("LeftSpeed: ");
     Serial1.println(speedLeft);
@@ -698,39 +767,158 @@ return ideal path*/
 }
 
 void leftEncoderEvent() {
-  if (digitalRead(aPinL) == HIGH) {
-    if (digitalRead(bPinL) == LOW) {
-      countLRA--;
+  if (digitalRead(aPinL) == digitalRead(bPinL)) {
+    countLRA++;
     }
-    else {
-      countLRA++;
-    }
-  }
   else {
-    if(digitalRead(bPinL) == LOW) {
-      countLRA++;
-    }
-    else {
-      countLRA--;
-    }
+    countLRA--;
   }
 }
 
 void rightEncoderEvent() {
-  if (digitalRead(aPinR) == HIGH) {
-    if (digitalRead(bPinR) == LOW) {
-      countRRA--;
+  if (digitalRead(aPinR) == digitalRead(bPinR)) {
+    countRRA++;
     }
-    else {
-      countRRA++;
-    }
-  }
   else {
-    if(digitalRead(bPinR) == LOW) {
-      countRRA++;
-    }
-    else {
-      countRRA--;
-    }
+    countRRA--;
   }
 }
+
+//returns whether a given wall is not an edge:
+bool testWall(int locX, int locY, int orient) {
+  //detect ajacent maze edges
+  bool edgeU = locX == SIZEX - 1;
+  bool edgeR = locY == SIZEX - 1;
+  bool edgeD = locX == 0;
+  bool edgeL = locY == 0;
+
+  //compare to orientation:
+  switch(orient) {
+    case 0:
+      return edgeU;
+    break;
+    case 1:
+      return edgeR;
+    break;
+    case 2:
+      return edgeD;
+    break;
+    case 3:
+      return edgeL;
+    break;
+    default://this default is fail dangerous, may lead to endless loop if default set true or let mouse crash into wall if false. It's better to let it crash so we can correct it sooner.
+      return false;
+  }
+}
+
+//returns true if a given cell exists:
+bool testCell(int locX, int locY) {
+  return locX >= 0 && locX < SIZEX && locY >= 0 &&locY < SIZEY;
+}
+
+//sets correct wall to state passed to it:
+void setMazeWall(int mouseOrient, bool wallState) {
+  int indexX = posX;
+  int indexY = posY;
+  
+  if(mouseOrient % 2 == 1)//points to vertical directions (horizontal needs no addition)
+    indexX += SIZEX;//shift to correct region of array
+
+  if(mouseOrient == 2)
+    indexY--;
+
+  if(mouseOrient == 3)
+    indexX--;
+
+    mazeWalls[indexX][indexY] = wallState;
+}
+
+//returns the requested int from a scan of neighbors
+int findNeighborLow(int locX, int locY, char infoReq) {
+  
+//infoReq: 'o' = orientation [0 to 3]; 'v' = value [0 to 255]
+int dirNeighborLow = -1;//null
+int valNeighborLow = 256;//null
+
+
+//for each direction, compare
+//tests if each neighbor exists and if there isn't a wall between them
+//!make more legible
+
+//up
+if(testCell(locX + 1, locY) && valNeighborLow > mazeDist[locX + 1][locY] && testWall(locX, locY, 0) && !mazeWalls[locX][locY + 1]) {
+  dirNeighborLow = 0;
+  valNeighborLow = mazeDist[locX + 1][locY];
+}
+//right
+if(testCell(locX, locY + 1) && valNeighborLow > mazeDist[locX][locY + 1] && testWall(locX, locY, 1) && !mazeWalls[locX + SIZEX][locY]) {
+  dirNeighborLow = 1;
+  valNeighborLow = mazeDist[locX][locY + 1];
+}
+//down
+if(testCell(locX - 1, locY) && valNeighborLow > mazeDist[locX - 1][locY] && testWall(locX, locY, 2) && !mazeWalls[locX][locY]) {
+  dirNeighborLow = 2;
+  valNeighborLow = mazeDist[locX - 1][locY];
+}
+//left
+if(testCell(locX, locY - 1) && valNeighborLow > mazeDist[locX][locY - 1] && testWall(locX, locY, 3) && !mazeWalls[locX + SIZEX - 1][locY]) {
+  dirNeighborLow = 3;
+  valNeighborLow = mazeDist[locX][locY - 1];
+}
+
+switch(infoReq) {
+  case 'o':
+    return dirNeighborLow;
+    break;
+  case 'v':
+    return valNeighborLow;
+    break;
+  default:
+    return -1;
+  }
+}
+
+void pushQueue(int item) {
+  checkQueue[checkSize] = item;
+  checkSize++;
+}
+
+int popQueue() {
+  //error case:
+  if(checkSize < 1)
+    return -1;
+    
+  checkSize--;
+  return checkQueue[checkSize];
+}
+
+void cellUpdate(int cell) {
+  //decompose into x and y
+  int locX = cell / SIZEX;
+  int locY = cell % SIZEX;
+
+    //if path is broken(all neighbors have greater distance to goal):
+  if(mazeDist[locX][locY] != findNeighborLow(locX, locY, 'v') + 1) {
+    //update this cell's value:
+    mazeDist[locX][locY] = findNeighborLow(locX, locY, 'v') + 1;
+    //then push neighbors onto checkQueue:
+    //up
+    if(testCell(locX, locY + 1) && !mazeWalls[locX + 1][locY]) {
+      pushQueue(cell + SIZEX);
+    }
+    //right
+    if(testCell(locX + 1, locY) && !mazeWalls[locX + SIZEX][locY]) {
+      pushQueue(cell + 1);
+    }
+    //down
+    if(testCell(locX, locY - 1) && !mazeWalls[locX][locY]) {
+      pushQueue(cell - SIZEX);
+    }
+    //left
+    if(testCell(locX - 1, locY) && !mazeWalls[locX + SIZEX - 1][locY]) {
+      pushQueue(cell - 1);
+    }
+    
+  }
+}
+//5/10/18
