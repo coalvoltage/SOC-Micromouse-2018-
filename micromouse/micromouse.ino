@@ -165,6 +165,8 @@ void leftMotor(int pinF,int pinR, int sp1,int sp2);
 void moveWheelsFor(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
 void moveWheelsRev(int spL, int spR, int pinForL, int pinRevL, int pinForR, int pinRevR);
 
+int randomInstruction();
+
 void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int reversePinL,int forwardPinR,int reversePinR);
   //ir functions
 
@@ -670,6 +672,10 @@ void loop() {
   
 }*/
 
+if(actionFinished) {
+  userCommand = randomInstruction();
+  actionFinished = false;
+}
 
   if(currentMillis - infoMillis >= infoDelay) {
     Serial.print("LeftSpeed: ");
@@ -1008,4 +1014,34 @@ void cellUpdate(int cell) {
     
   }
 }
+
+int randomInstruction() {
+  int options = -1;
+if(wallLeft)
+  options++;
+if(wallFront)
+  options++;
+if(wallRight)
+  options++;
+
+int decision = random(0, 100) % options;
+  
+if(wallLeft && decision == 0)
+ decision--; 
+else
+  return USERLEF;
+
+if(wallFront && decision == 0)
+ decision--; 
+else
+  return USERFOR;
+  
+if(wallRight && decision == 0)
+ decision--; 
+else
+  return USERLEF;
+
+return USERINV;
+}
+
 //5/10/18
