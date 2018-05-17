@@ -761,6 +761,73 @@ void rightMotor(int pinF,int pinR, int sp1,int sp2) {
   analogWrite(pinF, sp2);
   analogWrite(pinR, sp1);
 }
+
+int newCommand(char method) {
+  switch(method){
+    case 'p':
+      return proceduralCommand();
+    break;
+    case 'r':
+     return randomCommand();
+    break;
+    case 's':
+      return solverCommand();
+    break;
+  }
+}
+
+int ProceduralCommand() {
+  if(switchMove) {
+    if(wallFront) {
+      if(!wallLeft) {
+        return USERLEF;
+      }
+      else if(!wallRight) {
+        return USERRIG;
+      }
+      else {
+        return USERINV;
+      }
+    }
+    else {
+      return USERFOR;
+    }
+  }
+  else {
+    return USERBRK;
+  }
+}
+
+int randomCommand() {
+  int options = -1;
+  if(!wallLeft)
+    options++;
+  if(!wallFront)
+    options++;
+  if(!wallRight)
+    options++;
+
+  int decision = (int)(random(0, 6)) % options;//6 is used because it has factors 1,2,&3
+
+  if(!wallLeft && decision == 0)
+    return USERLEF;
+    
+  decision--;
+
+  if(!wallFront && decision == 0)
+    return USERFOR;
+    
+  decision--;
+
+  if(!wallRight && decision == 0)
+    return USERRIG;
+  
+  //if all fail, turn around:
+  return USERINV;
+}
+
+
+
 void mazeSolving() {
 	/*distmaze := int[16][16]
 wallmaze := int[16][16]
@@ -938,38 +1005,5 @@ void cellUpdate(int cell) {
     
   }
 }
-
-int randomInstruction() {
-  int options = -1;
-if(wallLeft)
-  options++;
-if(wallFront)
-  options++;
-if(wallRight)
-  options++;
-
-int decision = random(0, 100) % options;
-  
-if(wallLeft && decision == 0)
- decision--; 
-else
-  return USERLEF;
-
-if(wallFront && decision == 0)
- decision--; 
-else
-  return USERFOR;
-  
-if(wallRight && decision == 0)
- decision--; 
-else
-  return USERLEF;
-
-return USERINV;
-}
-
-
-
-
 
 //5/16/18
