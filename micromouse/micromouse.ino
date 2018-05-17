@@ -173,6 +173,12 @@ void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int 
 void leftEncoderEvent();
 void rightEncoderEvent();
 
+int newCommand();//global variable char instructionMethod controls which function generates instructions
+int proceduralCommand();//instructionMethod = 'p'
+int randomCommand();//instructionMethod = 'r'
+int solverCommand();//instructionMethod = 's'
+const char instructionMethod = 'p';
+
 //debug values
 char keyboardInput = '0';
 
@@ -762,8 +768,8 @@ void rightMotor(int pinF,int pinR, int sp1,int sp2) {
   analogWrite(pinR, sp1);
 }
 
-int newCommand(char method) {
-  switch(method){
+int newCommand() {
+  switch(instructionMethod){
     case 'p':
       return proceduralCommand();
     break;
@@ -773,10 +779,12 @@ int newCommand(char method) {
     case 's':
       return solverCommand();
     break;
+    default:
+      return USERBRK;
   }
 }
 
-int ProceduralCommand() {
+int proceduralCommand() {
   if(switchMove) {
     if(wallFront) {
       if(!wallLeft) {
