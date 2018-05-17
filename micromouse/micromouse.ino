@@ -551,24 +551,29 @@ void loop() {
         actionFinished = true;
       }
     }
-  }
-  else if(switchMove) {
-  if(wallFront) {
-    if(!wallLeft) {
-      userCommand = USERLEF;
-    }
-    else if(!wallRight) {
-      userCommand = USERRIG;
+  }//action finshed, generate new instruction:
+  else {
+    if(switchMove) {
+      if(wallFront) {
+        if(!wallLeft) {
+          userCommand = USERLEF;
+        }
+        else if(!wallRight) {
+          userCommand = USERRIG;
+        }
+        else {
+          userCommand = USERINV;
+        }
+      }
+      else {
+        userCommand = USERFOR;
+      }
     }
     else {
-      userCommand = USERINV;
-    }
-  }
-  else {
-      userCommand = USERFOR;
+      userCommand = USERBRK;
     }
 
-    switchMove = false;
+    switchMove = (userCommand == USERBRK);
     actionFinished = false;
 
     if(wallFront) {
@@ -582,83 +587,19 @@ void loop() {
       speedRight = speedMaxRight;
     }
 
-    countLRASaved = countLRA;
-    countRRASaved = countRRA;
+    if(userCommand != USERBRK) {
+      countLRASaved = countLRA;
+      countRRASaved = countRRA;
+    }
 
-    actionMillis = currentMillis;
-  }
-  else {
-    userCommand = USERBRK;
-    switchMove = true;
-    actionFinished = false;
     actionMillis = currentMillis;
   }
   
   //userCommand = USERBRK;
   
-    if(userCommand != USERLEF && userCommand != USERRIG) {
-      moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
-    }
-/*
-  //Maze Solver
-  if(actionFinished) {
-  //scan walls:
-    wallFront = sensorReadFL + sensorReadFR >= 2 * readingWallFront;
-    wallRight = sensorReadR >= readingWallRight;
-    wallLeft = sensorReadL >= readingWallLeft;
-  
-  //set mazeWalls[][] using info from wall scan:
-  int wallOrient = 0;//states what wall is being passed to a function  
-    //left:
-  wallOrient = (mouseOrient + 3) % 4;//gives dir of wall facing left sensor
-  if(testWall(posX, posY, wallOrient))
-    setMazeWall(wallOrient, wallLeft);
-
-  //front:
-  wallOrient = mouseOrient;//no addition for front
-  if(testWall(posX, posY, wallOrient))
-    setMazeWall(wallOrient, wallFront);
-
-  //right:
-  wallOrient = (mouseOrient + 1) % 4;//gives dir of wall facing right sensor
-  if(testWall(posX, posY, wallOrient))
-    setMazeWall(wallOrient, wallRight);
-
-  //now, update mazeDist using checkQueue
-  if(mazeDist[posX][posY] != findNeighborLow(posX, posY, 'v') + 1) {
-    pushQueue(posX * SIZEX + posY);
-    while(checkSize != 0) {
-      cellUpdate(popQueue());
-    }
+  if(userCommand != USERLEF && userCommand != USERRIG) {
+    moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
   }
-
-  //finally, choose new direction:
-  //(choose lowest valued neighbor with tiebreaking priority: left, down, right, then up)
-  int newOrient = findNeighborLow(posX, posY, 'o');
-  int toTurn = (newOrient - mouseOrient + 4) % 4;
-
-  switch(toTurn) {
-    case 0:
-      userCommand = USERFOR;
-      break;
-    case 1:
-      userCommand = USERRIG;
-      break;
-    case 2:
-      userCommand = USERINV;
-      break;
-    case 3:
-      userCommand = USERLEF;
-      break;
-    default:
-    //it should always be safe to go back a cell if there are errors
-      userCommand = USERINV;
-  }
-
-  //update orientation:
-  mouseOrient = newOrient;
-  
-}*/
 
   if(currentMillis - infoMillis >= infoDelay) {
     Serial.print("LeftSpeed: ");
@@ -1026,5 +967,9 @@ else
 
 return USERINV;
 }
+
+
+
+
 
 //5/16/18
