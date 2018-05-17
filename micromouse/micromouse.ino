@@ -553,51 +553,39 @@ void loop() {
     }
   }
   else if(switchMove) {
-    if(!wallLeft && wallFront) {
+  if(wallFront) {
+    if(!wallLeft) {
       userCommand = USERLEF;
-      switchMove = false;
-      actionFinished = false;
-      actionLeft = false;
-      actionRight = false;
-      countLRASaved = countLRA;
-      countRRASaved = countRRA;
-      speedLeft = speedMaxLeft;
-      speedRight = speedMaxRight;
-      actionMillis = currentMillis;
-      isTurning = true;
     }
-    else if(!wallRight && wallFront) {
+    else if(!wallRight) {
       userCommand = USERRIG;
-      switchMove = false;
-      actionFinished = false;
-      actionLeft = false;
-      actionRight = false;
-      countLRASaved = countLRA;
-      countRRASaved = countRRA;
-      speedLeft = speedMaxLeft;
-      speedRight = speedMaxRight;
-      actionMillis = currentMillis;
-      isTurning = true;
-    }
-    else if(wallFront) {
-      userCommand = USERINV;
-      switchMove = false;
-      actionFinished = false;
-      actionLeft = false;
-      actionRight = false;
-      countLRASaved = countLRA;
-      countRRASaved = countRRA;
-      actionMillis = currentMillis;
-      isTurning = true;
     }
     else {
-      userCommand = USERFOR;
-      switchMove = false;
-      actionFinished = false;
-      countLRASaved = countLRA;
-      countRRASaved = countRRA;
-      actionMillis = currentMillis;
+      userCommand = USERINV;
     }
+  }
+  else {
+      userCommand = USERFOR;
+    }
+
+    switchMove = false;
+    actionFinished = false;
+
+    if(wallFront) {
+      actionLeft = false;
+      actionRight = false;
+      isTurning = true;
+    }
+
+    if(!wallRight || !wallLeft) {
+      speedLeft = speedMaxLeft;
+      speedRight = speedMaxRight;
+    }
+
+    countLRASaved = countLRA;
+    countRRASaved = countRRA;
+
+    actionMillis = currentMillis;
   }
   else {
     userCommand = USERBRK;
@@ -671,11 +659,6 @@ void loop() {
   mouseOrient = newOrient;
   
 }*/
-
-if(actionFinished) {
-  userCommand = randomInstruction();
-  actionFinished = false;
-}
 
   if(currentMillis - infoMillis >= infoDelay) {
     Serial.print("LeftSpeed: ");
@@ -1044,4 +1027,4 @@ else
 return USERINV;
 }
 
-//5/10/18
+//5/16/18
