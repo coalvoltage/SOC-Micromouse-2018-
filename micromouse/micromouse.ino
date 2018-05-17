@@ -23,11 +23,11 @@ bool wallsOnBothSides = false;
 int posX = 0;
 int posY = 0;
 
-bool settingVars = true;
+bool settingVars = true;//used in setup when awaiting user start
 bool isTurning = false;
 //maze specs
-int sizeX = SIZEX;
-int sizeY = SIZEY;
+int sizeX = SIZEX;//recasting
+int sizeY = SIZEY;//recasting
 
 int goalx = 7;
 int goaly = 7;
@@ -41,9 +41,9 @@ int checkSize = 0;
 
 bool goalFound = false;
 
-int readingWallLeft = 150;
-int readingWallRight = 150;
-int readingWallFront = 350;
+int readingWallLeft = 150;//lower threshold to set wallLeft flag
+int readingWallRight = 150;//lower threshold to set wallRight flag
+int readingWallFront = 350;//lower threshold to set wallFront flag
 //pins
 int irRecievePinL = A5;
 int irRecievePinFL = A4;
@@ -71,19 +71,19 @@ bool isLedOn = false;
 
 //calculations
 
-int speedMax = 250;
+int speedMax = 250;//max speed for each motor //!not in use
 int speedMaxLeft = 160;
 int speedMaxRight = 135;
-int speedLeft = 157;
-int speedRight = 135;
-int recoverSpeedL;
-int recoverSpeedR;
+int speedLeft = 157;//initial speed of left motor
+int speedRight = 135;//inital speed of right motor
+int recoverSpeedL;//speed used in recovery//!not in use
+int recoverSpeedR;//speed used in recovery//!not in use
 //mapped values
 int mappedL = 1000;
 int mappedR = 950;
 //const int speedREV = 0;
 //const int speedFOR = 255;
-const int speedNEU = 128;
+const int speedNEU = 128;//speed to halt motor (questionable)
 
 int userCommand = USERBRK;
 int sensorReadL, sensorReadFL, sensorReadFR, sensorReadR;
@@ -95,8 +95,8 @@ int displacementReadings;
 
 bool switchMove = false;
 bool actionFinished = true;
-bool actionLeft = false;
-bool actionRight = false;
+bool actionLeft = false;//true if left has finshed action, false otherwise
+bool actionRight = false;//true if right has finshed action, false otherwise
 
 bool recoveryMode = false;
 
@@ -106,12 +106,12 @@ int interL, interFL, interFR, interR;
 const double kP = 0.3;
 const double kI = 0.05;
 const double kD = 0.005;
-double oldError = 0.0;
-double sumOfErrors = 0.0;
-volatile long errorCount = 0;
+double oldError = 0.0;//used in D control
+double sumOfErrors = 0.0;//used in I control
+volatile long errorCount = 0;//used in I control
 
-const int correctionTotal = 500;
-int stickToWallValue;
+const int correctionTotal = 500;//used to flag absense of walls
+int stickToWallValue;//used in 1-wall control
 //L = 0 R = 1
 bool stickToWallLorR = 0;
 bool stickToWall = false;
