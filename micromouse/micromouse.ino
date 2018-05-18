@@ -23,11 +23,11 @@ bool wallsOnBothSides = false;
 int posX = 0;
 int posY = 0;
 
-bool settingVars = true;
+bool settingVars = true;//used in setup when awaiting user start
 bool isTurning = false;
 //maze specs
-int sizeX = SIZEX;
-int sizeY = SIZEY;
+int sizeX = SIZEX;//recasting
+int sizeY = SIZEY;//recasting
 
 int goalx = 7;
 int goaly = 7;
@@ -41,9 +41,9 @@ int checkSize = 0;
 
 bool goalFound = false;
 
-int readingWallLeft = 150;
-int readingWallRight = 150;
-int readingWallFront = 350;
+int readingWallLeft = 150;//lower threshold to set wallLeft flag
+int readingWallRight = 150;//lower threshold to set wallRight flag
+int readingWallFront = 350;//lower threshold to set wallFront flag
 //pins
 int irRecievePinL = A5;
 int irRecievePinFL = A4;
@@ -71,19 +71,19 @@ bool isLedOn = false;
 
 //calculations
 
-int speedMax = 250;
+int speedMax = 250;//max speed for each motor //!not in use
 int speedMaxLeft = 160;
 int speedMaxRight = 135;
-int speedLeft = 157;
-int speedRight = 135;
-int recoverSpeedL;
-int recoverSpeedR;
+int speedLeft = 157;//initial speed of left motor
+int speedRight = 135;//inital speed of right motor
+int recoverSpeedL;//speed used in recovery//!not in use
+int recoverSpeedR;//speed used in recovery//!not in use
 //mapped values
 int mappedL = 1000;
 int mappedR = 950;
 //const int speedREV = 0;
 //const int speedFOR = 255;
-const int speedNEU = 128;
+const int speedNEU = 128;//speed to halt motor (questionable)
 
 int userCommand = USERBRK;
 int sensorReadL, sensorReadFL, sensorReadFR, sensorReadR;
@@ -95,8 +95,8 @@ int displacementReadings;
 
 bool switchMove = false;
 bool actionFinished = true;
-bool actionLeft = false;
-bool actionRight = false;
+bool actionLeft = false;//true if left has finshed action, false otherwise
+bool actionRight = false;//true if right has finshed action, false otherwise
 
 bool recoveryMode = false;
 
@@ -106,12 +106,12 @@ int interL, interFL, interFR, interR;
 const double kP = 0.3;
 const double kI = 0.05;
 const double kD = 0.005;
-double oldError = 0.0;
-double sumOfErrors = 0.0;
-volatile long errorCount = 0;
+double oldError = 0.0;//used in D control
+double sumOfErrors = 0.0;//used in I control
+volatile long errorCount = 0;//used in I control
 
-const int correctionTotal = 500;
-int stickToWallValue;
+const int correctionTotal = 500;//used to flag absense of walls
+int stickToWallValue;//used in 1-wall control
 //L = 0 R = 1
 bool stickToWallLorR = 0;
 bool stickToWall = false;
@@ -172,6 +172,12 @@ void moveMouse(int userCommand,int speedLeft,int speedRight,int forwardPinL,int 
 
 void leftEncoderEvent();
 void rightEncoderEvent();
+
+int newCommand();//global variable char instructionMethod controls which function generates instructions
+int proceduralCommand();//instructionMethod = 'p'
+int randomCommand();//instructionMethod = 'r'
+int solverCommand();//instructionMethod = 's'
+const char instructionMethod = 'p';
 
 //debug values
 char keyboardInput = '0';
@@ -551,131 +557,55 @@ void loop() {
         actionFinished = true;
       }
     }
-  }
-  else if(switchMove) {
-    if(!wallLeft && wallFront) {
-      userCommand = USERLEF;
-      switchMove = false;
-      actionFinished = false;
-      actionLeft = false;
-      actionRight = false;
-      countLRASaved = countLRA;
-      countRRASaved = countRRA;
-      speedLeft = speedMaxLeft;
-      speedRight = speedMaxRight;
-      actionMillis = currentMillis;
-      isTurning = true;
-    }
-    else if(!wallRight && wallFront) {
-      userCommand = USERRIG;
-      switchMove = false;
-      actionFinished = false;
-      actionLeft = false;
-      actionRight = false;
-      countLRASaved = countLRA;
-      countRRASaved = countRRA;
-      speedLeft = speedMaxLeft;
-      speedRight = speedMaxRight;
-      actionMillis = currentMillis;
-      isTurning = true;
-    }
-    else if(wallFront) {
-      userCommand = USERINV;
-      switchMove = false;
-      actionFinished = false;
-      actionLeft = false;
-      actionRight = false;
-      countLRASaved = countLRA;
-      countRRASaved = countRRA;
-      actionMillis = currentMillis;
-      isTurning = true;
+  }//action finshed, generate new instruction:
+  else {
+    if(switchMove) {
+      if(wallFront) {
+        if(!wallLeft) {
+          userCommand = USERLEF;
+        }
+        else if(!wallRight) {
+          userCommand = USERRIG;
+        }
+        else {
+          userCommand = USERINV;
+        }
+      }
+      else {
+        userCommand = USERFOR;
+      }
     }
     else {
-      userCommand = USERFOR;
-      switchMove = false;
-      actionFinished = false;
+      userCommand = USERBRK;
+    }
+
+    switchMove = (userCommand == USERBRK);
+    actionFinished = false;
+
+    if(wallFront) {
+      actionLeft = false;
+      actionRight = false;
+      isTurning = true;
+    }
+
+    if(!wallRight || !wallLeft) {
+      speedLeft = speedMaxLeft;
+      speedRight = speedMaxRight;
+    }
+
+    if(userCommand != USERBRK) {
       countLRASaved = countLRA;
       countRRASaved = countRRA;
-      actionMillis = currentMillis;
     }
-  }
-  else {
-    userCommand = USERBRK;
-    switchMove = true;
-    actionFinished = false;
+
     actionMillis = currentMillis;
   }
   
   //userCommand = USERBRK;
   
-    if(userCommand != USERLEF && userCommand != USERRIG) {
-      moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
-    }
-/*
-  //Maze Solver
-  if(actionFinished) {
-  //scan walls:
-    wallFront = sensorReadFL + sensorReadFR >= 2 * readingWallFront;
-    wallRight = sensorReadR >= readingWallRight;
-    wallLeft = sensorReadL >= readingWallLeft;
-  
-  //set mazeWalls[][] using info from wall scan:
-  int wallOrient = 0;//states what wall is being passed to a function  
-    //left:
-  wallOrient = (mouseOrient + 3) % 4;//gives dir of wall facing left sensor
-  if(testWall(posX, posY, wallOrient))
-    setMazeWall(wallOrient, wallLeft);
-
-  //front:
-  wallOrient = mouseOrient;//no addition for front
-  if(testWall(posX, posY, wallOrient))
-    setMazeWall(wallOrient, wallFront);
-
-  //right:
-  wallOrient = (mouseOrient + 1) % 4;//gives dir of wall facing right sensor
-  if(testWall(posX, posY, wallOrient))
-    setMazeWall(wallOrient, wallRight);
-
-  //now, update mazeDist using checkQueue
-  if(mazeDist[posX][posY] != findNeighborLow(posX, posY, 'v') + 1) {
-    pushQueue(posX * SIZEX + posY);
-    while(checkSize != 0) {
-      cellUpdate(popQueue());
-    }
+  if(userCommand != USERLEF && userCommand != USERRIG) {
+    moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
   }
-
-  //finally, choose new direction:
-  //(choose lowest valued neighbor with tiebreaking priority: left, down, right, then up)
-  int newOrient = findNeighborLow(posX, posY, 'o');
-  int toTurn = (newOrient - mouseOrient + 4) % 4;
-
-  switch(toTurn) {
-    case 0:
-      userCommand = USERFOR;
-      break;
-    case 1:
-      userCommand = USERRIG;
-      break;
-    case 2:
-      userCommand = USERINV;
-      break;
-    case 3:
-      userCommand = USERLEF;
-      break;
-    default:
-    //it should always be safe to go back a cell if there are errors
-      userCommand = USERINV;
-  }
-
-  //update orientation:
-  mouseOrient = newOrient;
-  
-}*/
-
-if(actionFinished) {
-  userCommand = randomInstruction();
-  actionFinished = false;
-}
 
   if(currentMillis - infoMillis >= infoDelay) {
     Serial.print("LeftSpeed: ");
@@ -837,6 +767,75 @@ void rightMotor(int pinF,int pinR, int sp1,int sp2) {
   analogWrite(pinF, sp2);
   analogWrite(pinR, sp1);
 }
+
+int newCommand() {
+  switch(instructionMethod){
+    case 'p':
+      return proceduralCommand();
+    break;
+    case 'r':
+     return randomCommand();
+    break;
+    case 's':
+      return solverCommand();
+    break;
+    default:
+      return USERBRK;
+  }
+}
+
+int proceduralCommand() {
+  if(switchMove) {
+    if(wallFront) {
+      if(!wallLeft) {
+        return USERLEF;
+      }
+      else if(!wallRight) {
+        return USERRIG;
+      }
+      else {
+        return USERINV;
+      }
+    }
+    else {
+      return USERFOR;
+    }
+  }
+  else {
+    return USERBRK;
+  }
+}
+
+int randomCommand() {
+  int options = -1;
+  if(!wallLeft)
+    options++;
+  if(!wallFront)
+    options++;
+  if(!wallRight)
+    options++;
+
+  int decision = (int)(random(0, 6)) % options;//6 is used because it has factors 1,2,&3
+
+  if(!wallLeft && decision == 0)
+    return USERLEF;
+    
+  decision--;
+
+  if(!wallFront && decision == 0)
+    return USERFOR;
+    
+  decision--;
+
+  if(!wallRight && decision == 0)
+    return USERRIG;
+  
+  //if all fail, turn around:
+  return USERINV;
+}
+
+
+
 void mazeSolving() {
 	/*distmaze := int[16][16]
 wallmaze := int[16][16]
@@ -1015,33 +1014,4 @@ void cellUpdate(int cell) {
   }
 }
 
-int randomInstruction() {
-  int options = -1;
-if(wallLeft)
-  options++;
-if(wallFront)
-  options++;
-if(wallRight)
-  options++;
-
-int decision = random(0, 100) % options;
-  
-if(wallLeft && decision == 0)
- decision--; 
-else
-  return USERLEF;
-
-if(wallFront && decision == 0)
- decision--; 
-else
-  return USERFOR;
-  
-if(wallRight && decision == 0)
- decision--; 
-else
-  return USERLEF;
-
-return USERINV;
-}
-
-//5/10/18
+//5/16/18
