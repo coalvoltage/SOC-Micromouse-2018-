@@ -43,7 +43,7 @@ bool goalFound = false;
 
 int readingWallLeft = 150;//lower threshold to set wallLeft flag
 int readingWallRight = 150;//lower threshold to set wallRight flag
-int readingWallFront = 470;//lower threshold to set wallFront flag
+int readingWallFront = 400;//lower threshold to set wallFront flag
 //pins
 int irRecievePinL = A5;
 int irRecievePinFL = A4;
@@ -72,10 +72,10 @@ bool isLedOn = false;
 //calculations
 
 int speedMax = 250;//max speed for each motor //!not in use
-int speedMaxLeft = 160;
-int speedMaxRight = 135;
-int speedLeft = 157;//initial speed of left motor
-int speedRight = 135;//inital speed of right motor
+int speedMaxLeft = 180;
+int speedMaxRight = 165;
+int speedLeft = 180;//initial speed of left motor
+int speedRight = 165;//inital speed of right motor
 int recoverSpeedL;//speed used in recovery//!not in use
 int recoverSpeedR;//speed used in recovery//!not in use
 //mapped values
@@ -106,7 +106,7 @@ bool actionLeft = false;//true if left has finshed action, false otherwise
 bool actionRight = false;//true if right has finshed action, false otherwise
 
 bool recoveryMode = false;
-int storedIRBounds = 4;
+int storedIRBounds = 5;
 int storedIRTimesMatched = 0;
 int storedIRL = 0;
 int storedIRFL = 0;
@@ -115,14 +115,14 @@ int storedIRR = 0;
 
 int interL, interFL, interFR, interR;
 
-const double kP = 0.3 ;
+const double kP = 0.15 ;
 const double kI = 0.0;
 const double kD = 0.0;
 double oldError = 0.0;//used in D control
 double sumOfErrors = 0.0;//used in I control
 volatile long errorCount = 0;//used in I control
 
-const int correctionTotal = 600; //used to flag absense of walls
+const int correctionTotal = 550; //used to flag absense of walls
 int stickToWallValue = 0;//used in 1-wall control
 //L = 0 R = 1
 bool stickToWallLorR = 0;
@@ -403,7 +403,7 @@ void loop() {
       recoverSpeedL = speedLeft;
       recoverSpeedR = speedRight;
         speedLeft = speedMaxLeft;
-        speedRight = (speedMaxRight * 5) /6;
+        speedRight = (speedMaxRight * 0.9);
     }
     else if(userCommand == USERREV) {
       if(currentMillis - actionMillis >= recovRevDelay) {
@@ -470,11 +470,13 @@ if(userCommand == USERRIG) {
     else if(userCommand == USERFOR) {
       if(countLRASaved - countLRA >= currentLRABound || countLRA- countLRASaved >= currentLRABound) {
         actionFinished = true;
+        stickToWall = false;
       }
       else if(wallFront) {
         actionFinished = true;
+        stickToWall = false;
       }
-      /*if(currentMillis - correctionMillis > correctionDelay && areIREmittersOn) {
+      if(currentMillis - correctionMillis > correctionDelay && areIREmittersOn) {
         if(sensorReadL + sensorReadR >= correctionTotal) {
           if((sensorReadL > sensorReadR) && wallsOnBothSides && userCommand == USERFOR && !(sensorReadR <= 100 && sensorReadL >= 400)) {
             displacementReadings = sensorReadL - sensorReadR;
@@ -517,7 +519,7 @@ if(userCommand == USERRIG) {
             displacementReadings = sensorReadL - stickToWallValue;
             if(displacementReadings >= 0) {
               speedLeft = speedMaxLeft;
-              speedRight = (speedMaxRight - (displacementReadings * kP)) ;
+              speedRight = (speedMaxRight - (displacementReadings * kP/2)) ;
              //Serial.println("displacementReadings: left");
              //Serial.println(displacementReadings);
            }
@@ -525,7 +527,7 @@ if(userCommand == USERRIG) {
           else if ((sensorReadL < stickToWallValue) && userCommand == USERFOR && stickToWallLorR == 0){
             displacementReadings = stickToWallValue - sensorReadL;
             if(displacementReadings >= 0) {
-              speedLeft = (speedMaxLeft - (displacementReadings * kP));
+              speedLeft = (speedMaxLeft - (displacementReadings * kP/2));
               speedRight = speedMaxRight;
               //Serial.println("displacementReadings: right");
               //Serial.println(displacementReadings);
@@ -534,7 +536,7 @@ if(userCommand == USERRIG) {
           else if((sensorReadR > stickToWallValue) && userCommand == USERFOR && stickToWallLorR == 1) {
             displacementReadings = sensorReadR - stickToWallValue;
             if(displacementReadings >= 0) {
-              speedLeft = (speedMaxLeft - (displacementReadings * kP) );
+              speedLeft = (speedMaxLeft - (displacementReadings * kP/2) );
               speedRight = speedMaxRight;
               //Serial.println("displacementReadings: left");
               //Serial.println(displacementReadings);
@@ -544,7 +546,7 @@ if(userCommand == USERRIG) {
             displacementReadings = stickToWallValue - sensorReadR;
             if(displacementReadings >= 0) {
               speedLeft = speedMaxLeft;
-              speedRight = (speedMaxRight - (displacementReadings * kP));
+              speedRight = (speedMaxRight - (displacementReadings * kP/2));
              //Serial.println("displacementReadings: right");
               //Serial.println(displacementReadings);
             }
@@ -555,8 +557,9 @@ if(userCommand == USERRIG) {
             clearMillis = currentMillis;
           }
         }
-      }*/
-    }
+        }
+      }
+    
     else if(userCommand == USERREV) {
       if(countLRASaved - countLRA >= currentLRABound || countLRA - countLRASaved >= currentLRABound) {
         actionFinished = true;
@@ -591,7 +594,7 @@ if(userCommand == USERRIG) {
     }
   }//action finshed, generate new instruction:
   else if(switchMove) {
-    /*if(beginGoForward == false) {
+    if(beginGoForward == false) {
       if(!wallLeft && !wallRight && !wallFront) {
         randomChoice = random(1,3);
         if(randomChoice == 1) {
@@ -641,15 +644,15 @@ if(userCommand == USERRIG) {
     else if(beginGoForward == true) {
       commandForward = true;
       beginGoForward = false;
-    }*/
+    }
     if(commandForward == true) {
       userCommand = USERFOR;
       commandForward = false;
       switchMove = false;
       actionFinished = false;
-      speedLeft = speedMaxLeft;
-      speedRight = speedMaxRight;
       countLRASaved = countLRA;
+              speedLeft = speedMaxLeft;
+        speedRight = speedMaxRight;
       actionMillis = currentMillis;
     }
     else if((!wallLeft && wallFront) || commandLeft){
