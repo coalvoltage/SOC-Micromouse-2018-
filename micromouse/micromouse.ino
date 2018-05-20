@@ -43,7 +43,7 @@ bool goalFound = false;
 
 int readingWallLeft = 150;//lower threshold to set wallLeft flag
 int readingWallRight = 150;//lower threshold to set wallRight flag
-int readingWallFront = 350;//lower threshold to set wallFront flag
+int readingWallFront = 470;//lower threshold to set wallFront flag
 //pins
 int irRecievePinL = A5;
 int irRecievePinFL = A4;
@@ -86,6 +86,13 @@ int mappedR = 950;
 const int speedNEU = 128;//speed to halt motor (questionable)
 
 int userCommand = USERBRK;
+
+int randomChoice = 0;
+bool commandLeft, commandRight, commandForward = false;
+bool goForward = false;
+bool beginGoForward = true;
+
+
 int sensorReadL, sensorReadFL, sensorReadFR, sensorReadR;
 
 const int sensorReadCorrectionBoundL = 30;
@@ -99,19 +106,24 @@ bool actionLeft = false;//true if left has finshed action, false otherwise
 bool actionRight = false;//true if right has finshed action, false otherwise
 
 bool recoveryMode = false;
-
+int storedIRBounds = 4;
+int storedIRTimesMatched = 0;
+int storedIRL = 0;
+int storedIRFL = 0;
+int storedIRFR = 0;
+int storedIRR = 0;
 
 int interL, interFL, interFR, interR;
 
-const double kP = 0.3;
-const double kI = 0.05;
-const double kD = 0.005;
+const double kP = 0.3 ;
+const double kI = 0.0;
+const double kD = 0.0;
 double oldError = 0.0;//used in D control
 double sumOfErrors = 0.0;//used in I control
 volatile long errorCount = 0;//used in I control
 
-const int correctionTotal = 500;//used to flag absense of walls
-int stickToWallValue;//used in 1-wall control
+const int correctionTotal = 600; //used to flag absense of walls
+int stickToWallValue = 0;//used in 1-wall control
 //L = 0 R = 1
 bool stickToWallLorR = 0;
 bool stickToWall = false;
@@ -133,13 +145,14 @@ long currentLRABound = 530;
 long currentRRABound = 530;
 //175
 long currentTurnBound = 180;
-long currentFullBound = 410;
+long currentFullBound = 370;
 //timer values
 unsigned long blinkerMillis = 0;
 unsigned long irMillis = 0;
 unsigned long infoMillis = 0;
 unsigned long actionMillis = 0;
 unsigned long correctionMillis = 0;
+unsigned long clearMillis = 0;
 unsigned long currentMillis;
 
 const unsigned long blinkerDelay = 1000;
@@ -148,9 +161,11 @@ const unsigned long irDelay = 1;
 bool areIREmittersOn = true;
 
 const unsigned long infoDelay = 100;
-const unsigned long correctionDelay = 10;
+const unsigned long correctionDelay = 1;
 const unsigned long actionDelay = 2000;
-const unsigned long breakDelay = 1000;
+const unsigned long breakDelay = 500;
+const unsigned long clearDelay = 3000;
+const unsigned long recovRevDelay = 1500;
 //function declarations
   //mouse movements
 void moveBreak(int pinFor, int pinRev);
@@ -335,7 +350,7 @@ void loop() {
       sensorReadFR = map(sensorReadFR, 0, 1000, 0, 500);
       sensorReadR = map(sensorReadR, 0, mappedR, 0, 500);
 
-      if(sensorReadFL >= readingWallFront || sensorReadFR >= readingWallFront) {
+      if(sensorReadFL >= readingWallFront && sensorReadFR >= readingWallFront) {
         wallFront = true;
       }
       else {
@@ -379,7 +394,7 @@ void loop() {
   
   //breaks after a cell or action is completed
   if(recoveryMode) {
-    if(userCommand == USERBRK && currentMillis - actionMillis >= actionDelay) {
+    if(userCommand == USERBRK && currentMillis - actionMillis >= recovRevDelay) {
       userCommand = USERREV;
       switchMove = false;
       actionFinished = false;
@@ -387,11 +402,11 @@ void loop() {
       actionMillis = currentMillis;
       recoverSpeedL = speedLeft;
       recoverSpeedR = speedRight;
-      speedLeft = speedMaxLeft;
-      speedRight = (speedMaxRight * 3 ) /4;
+        speedLeft = speedMaxLeft;
+        speedRight = (speedMaxRight * 5) /6;
     }
     else if(userCommand == USERREV) {
-      if(countLRASaved - countLRA >= currentLRABound || countLRA - countLRASaved >= currentLRABound) {
+      if(currentMillis - actionMillis >= recovRevDelay) {
         actionFinished = true;
         recoveryMode = false;
         speedLeft = speedMaxLeft;
@@ -399,11 +414,11 @@ void loop() {
       }
     }
   }
-  if(!actionFinished) {
-    if(userCommand == USERRIG) {
+  else if(!actionFinished) {
+if(userCommand == USERRIG) {
       if(countLRASaved - countLRA  >= currentTurnBound || countLRA - countLRASaved >= currentTurnBound) {
-        actionRight = true;
-        leftMotor(forwardPinL, reversePinL, 0 ,0);
+        actionLeft = true;
+        leftMotor(forwardPinL, reversePinL, 0, 0);
       }
       else{
         leftMotor(forwardPinL, reversePinL, speedLeft,0);
@@ -418,12 +433,14 @@ void loop() {
       if(actionRight && actionLeft) {
         actionFinished = true;
         isTurning = false;
+        speedLeft = speedMaxLeft;
+        speedRight = speedMaxRight;
       }
     }
     else if(userCommand == USERLEF) {
       if(countLRASaved - countLRA  >= currentTurnBound || countLRA - countLRASaved >= currentTurnBound) {
-        actionRight = true;
-        leftMotor(forwardPinL, reversePinL, 0 ,0);
+        actionLeft = true;
+        leftMotor(forwardPinL, reversePinL, 0, 0);
       }
       else {
         leftMotor(forwardPinL, reversePinL, 0,speedLeft);
@@ -438,30 +455,34 @@ void loop() {
       if(actionRight && actionLeft) {
         actionFinished = true;
         isTurning = false;
+        speedLeft = speedMaxLeft;
+        speedRight = speedMaxRight;
       }
     }
     else if(userCommand == USERINV) {
       if((abs(countLRASaved - countLRA)>= currentFullBound)) {
         actionFinished = true;
         isTurning = false;
+        speedLeft = recoverSpeedL;
+        speedRight = recoverSpeedR;
       }
     }
     else if(userCommand == USERFOR) {
-      if(countLRASaved - countLRA >= currentLRABound || countLRA - countLRASaved >= currentLRABound) {
+      if(countLRASaved - countLRA >= currentLRABound || countLRA- countLRASaved >= currentLRABound) {
         actionFinished = true;
       }
       else if(wallFront) {
         actionFinished = true;
       }
-      if(currentMillis - correctionMillis > correctionDelay && areIREmittersOn) {
+      /*if(currentMillis - correctionMillis > correctionDelay && areIREmittersOn) {
         if(sensorReadL + sensorReadR >= correctionTotal) {
           if((sensorReadL > sensorReadR) && wallsOnBothSides && userCommand == USERFOR && !(sensorReadR <= 100 && sensorReadL >= 400)) {
             displacementReadings = sensorReadL - sensorReadR;
             sumOfErrors += displacementReadings;
-            if(displacementReadings >= 0) {
+           if(displacementReadings >= 0) {
               speedLeft = speedMaxLeft;
-              speedRight = speedMaxRight - (displacementReadings * kP) - (abs(oldError - displacementReadings) * kD);
-              //Serial.println("displacementReadings: left");
+              speedRight = speedMaxRight - (displacementReadings * kP) - (abs(oldError - displacementReadings) * kD) - (sumOfErrors * kI);
+             //Serial.println("displacementReadings: left");
               //Serial.println(displacementReadings);
             }
             oldError = displacementReadings;
@@ -470,7 +491,7 @@ void loop() {
             displacementReadings = sensorReadR - sensorReadL;
             sumOfErrors += displacementReadings;
             if(displacementReadings >= 0) {
-              speedLeft = speedMaxLeft - (displacementReadings * kP) - (abs(oldError - displacementReadings) * kD);
+              speedLeft = speedMaxLeft - (displacementReadings * kP) - (abs(oldError - displacementReadings) * kD) - (sumOfErrors * kI);
               speedRight = speedMaxRight;
               //Serial.println("displacementReadings: right");
               //Serial.println(displacementReadings);
@@ -480,12 +501,12 @@ void loop() {
           stickToWall = false;
         }
         else if(!stickToWall){
-          if((sensorReadL < sensorReadR) && wallsOnBothSides && userCommand == USERFOR) {
+          if((sensorReadL < sensorReadR) && userCommand == USERFOR) {
             stickToWallValue = sensorReadR;
             stickToWallLorR = 1;
             stickToWall = true;
           }          
-          else if((sensorReadL > sensorReadR) && wallsOnBothSides && userCommand == USERFOR) {
+          else if((sensorReadL > sensorReadR) && userCommand == USERFOR) {
             stickToWallValue = sensorReadL;
             stickToWallLorR = 0;
             stickToWall = true;
@@ -496,15 +517,15 @@ void loop() {
             displacementReadings = sensorReadL - stickToWallValue;
             if(displacementReadings >= 0) {
               speedLeft = speedMaxLeft;
-              speedRight = speedMaxRight - (displacementReadings * kP) ;
-              //Serial.println("displacementReadings: left");
-              //Serial.println(displacementReadings);
-            }
+              speedRight = (speedMaxRight - (displacementReadings * kP)) ;
+             //Serial.println("displacementReadings: left");
+             //Serial.println(displacementReadings);
+           }
           }
           else if ((sensorReadL < stickToWallValue) && userCommand == USERFOR && stickToWallLorR == 0){
             displacementReadings = stickToWallValue - sensorReadL;
             if(displacementReadings >= 0) {
-              speedLeft = speedMaxLeft - (displacementReadings * kP);
+              speedLeft = (speedMaxLeft - (displacementReadings * kP));
               speedRight = speedMaxRight;
               //Serial.println("displacementReadings: right");
               //Serial.println(displacementReadings);
@@ -513,7 +534,7 @@ void loop() {
           else if((sensorReadR > stickToWallValue) && userCommand == USERFOR && stickToWallLorR == 1) {
             displacementReadings = sensorReadR - stickToWallValue;
             if(displacementReadings >= 0) {
-              speedLeft = speedMaxLeft - (displacementReadings * kP) ;
+              speedLeft = (speedMaxLeft - (displacementReadings * kP) );
               speedRight = speedMaxRight;
               //Serial.println("displacementReadings: left");
               //Serial.println(displacementReadings);
@@ -523,14 +544,18 @@ void loop() {
             displacementReadings = stickToWallValue - sensorReadR;
             if(displacementReadings >= 0) {
               speedLeft = speedMaxLeft;
-              speedRight = speedMaxRight - (displacementReadings * kP);
-              //Serial.println("displacementReadings: right");
+              speedRight = (speedMaxRight - (displacementReadings * kP));
+             //Serial.println("displacementReadings: right");
               //Serial.println(displacementReadings);
             }
           }
           correctionMillis = currentMillis;
+          if(currentMillis - clearMillis >= clearDelay) {
+            sumOfErrors = 0;
+            clearMillis = currentMillis;
+          }
         }
-      }
+      }*/
     }
     else if(userCommand == USERREV) {
       if(countLRASaved - countLRA >= currentLRABound || countLRA - countLRASaved >= currentLRABound) {
@@ -541,72 +566,160 @@ void loop() {
       if(currentMillis - actionMillis >= breakDelay) {
         actionFinished = true;
       }
-      if(wallLeft && wallRight) {
+      if(wallRight && wallLeft) {
         wallsOnBothSides = true;
       }
       else {
-        wallsOnBothSides = false;
+        wallsOnBothSides =false;
       }
     }
-    if (currentMillis - actionMillis >= actionDelay) {
-      if(userCommand != USERBRK) {
-        recoveryMode = true;
-        countLRASaved = countLRA;
-        actionMillis = currentMillis;
-        userCommand = USERBRK;
-        actionFinished = true;
-      }
+    if (currentMillis - actionMillis >= actionDelay && userCommand != USERBRK) {
+        if((sensorReadFL <= storedIRFL  + storedIRBounds && sensorReadFL >= storedIRFL  - storedIRBounds 
+          && sensorReadL <= storedIRL  + storedIRBounds && sensorReadL >= storedIRL  - storedIRBounds)
+          || (sensorReadFR <= storedIRFR  + storedIRBounds && sensorReadFR >= storedIRFR  - storedIRBounds 
+          && sensorReadR <= storedIRR  + storedIRBounds && sensorReadR >= storedIRR  - storedIRBounds)) {
+          recoveryMode = true;
+          countLRASaved = countLRA;
+          actionMillis = currentMillis;
+          userCommand = USERBRK;
+          actionFinished = true;
+        }
+        storedIRL = sensorReadL;
+        storedIRFL = sensorReadFL;
+        storedIRFR = sensorReadFR;
+        storedIRR = sensorReadR;
     }
   }//action finshed, generate new instruction:
-  else {
-    if(switchMove) {
-      if(wallFront) {
-        if(!wallLeft) {
-          userCommand = USERLEF;
+  else if(switchMove) {
+    /*if(beginGoForward == false) {
+      if(!wallLeft && !wallRight && !wallFront) {
+        randomChoice = random(1,3);
+        if(randomChoice == 1) {
+          commandLeft = true;
+          beginGoForward = true;
         }
-        else if(!wallRight) {
-          userCommand = USERRIG;
+        else if(randomChoice == 2) {
+          commandRight = true;
+          beginGoForward = true;
         }
-        else {
-          userCommand = USERINV;
+        else if(randomChoice == 3) {
+          commandForward = true;
         }
       }
-      else {
-        userCommand = USERFOR;
+      else if(!wallLeft && !wallRight && wallFront) {
+        randomChoice = random(1,2);
+        if(randomChoice == 1) {
+          commandLeft = true;
+          beginGoForward = true;
+        }
+        else if(randomChoice == 2) {
+          commandRight = true;
+          beginGoForward = true;
+        }
+      }
+      else if(!wallLeft && !wallFront) {
+        randomChoice = random(1,2);
+        if(randomChoice == 1) {
+          commandLeft = true;
+          beginGoForward = true;
+        }
+        else if(randomChoice == 2) {
+          commandForward = true;
+        }
+      }
+      else if(!wallRight && !wallFront) {
+        randomChoice = random(1,2);
+        if(randomChoice == 1) {
+          commandForward = true;
+        }
+        else if(randomChoice == 2) {
+          commandRight = true;
+          beginGoForward = true;
+        }
       }
     }
-    else {
-      userCommand = USERBRK;
-    }
-
-    switchMove = (userCommand == USERBRK);
-    actionFinished = false;
-
-    if(wallFront) {
-      actionLeft = false;
-      actionRight = false;
-      isTurning = true;
-    }
-
-    if(!wallRight || !wallLeft) {
+    else if(beginGoForward == true) {
+      commandForward = true;
+      beginGoForward = false;
+    }*/
+    if(commandForward == true) {
+      userCommand = USERFOR;
+      commandForward = false;
+      switchMove = false;
+      actionFinished = false;
       speedLeft = speedMaxLeft;
       speedRight = speedMaxRight;
+      countLRASaved = countLRA;
+      actionMillis = currentMillis;
     }
-
-    if(userCommand != USERBRK) {
+    else if((!wallLeft && wallFront) || commandLeft){
+      userCommand = USERLEF;
+      switchMove = false;
+      actionFinished = false;
+      actionLeft = false;
+      actionRight = false;
+      commandLeft = false;
       countLRASaved = countLRA;
       countRRASaved = countRRA;
+      recoverSpeedL = speedLeft;
+      recoverSpeedR = speedRight;
+      speedLeft = recoverSpeedL;
+      speedRight = recoverSpeedR;
+      actionMillis = currentMillis;
+      commandForward = true;
+      isTurning = true;
     }
-
+    else if(!wallRight && wallFront || commandRight) {
+      userCommand = USERRIG;
+      switchMove = false;
+      actionFinished = false;
+      actionLeft = false;
+      actionRight = false;
+      commandRight = false;
+      recoverSpeedL = speedLeft;
+      recoverSpeedR = speedRight;
+      speedLeft = recoverSpeedL;
+      speedRight = recoverSpeedR;
+      countLRASaved = countLRA;
+      countRRASaved = countRRA;
+      actionMillis = currentMillis;
+      commandForward = true;
+      isTurning = true;
+    }
+    else if(wallFront) {
+      userCommand = USERINV;
+      switchMove = false;
+      actionFinished = false;
+      actionLeft = false;
+      actionRight = false;
+      recoverSpeedL = speedLeft;
+      recoverSpeedR = speedRight;
+      speedLeft = recoverSpeedL;
+      speedRight = recoverSpeedR;
+      countLRASaved = countLRA;
+      actionMillis = currentMillis;
+      isTurning = true;
+    }
+    else {
+      userCommand = USERFOR;
+      commandForward = false;
+      switchMove = false;
+      actionFinished = false;
+      countLRASaved = countLRA;
+      actionMillis = currentMillis;
+    }
+  }
+  else {
+    userCommand = USERBRK;
+    switchMove = true;
+    actionFinished = false;
     actionMillis = currentMillis;
   }
-  
-  //userCommand = USERBRK;
-  
+
   if(userCommand != USERLEF && userCommand != USERRIG) {
     moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
   }
-
+  
   if(currentMillis - infoMillis >= infoDelay) {
     Serial.print("LeftSpeed: ");
     Serial.println(speedLeft);
