@@ -41,9 +41,9 @@ int checkSize = 0;
 
 bool goalFound = false;
 
-int readingWallLeft = 150;//lower threshold to set wallLeft flag
-int readingWallRight = 150;//lower threshold to set wallRight flag
-int readingWallFront = 400;//lower threshold to set wallFront flag
+int readingWallLeft = 120;//lower threshold to set wallLeft flag
+int readingWallRight = 120;//lower threshold to set wallRight flag
+int readingWallFront = 300;//lower threshold to set wallFront flag
 //pins
 int irRecievePinL = A5;
 int irRecievePinFL = A4;
@@ -65,6 +65,7 @@ int bPinL = 8;
 int aPinR = 9;
 int bPinR = 10;
 
+int unusedPin = 12;
 int ledPin = 13;
 //led blinker bool
 bool isLedOn = false;
@@ -115,14 +116,14 @@ int storedIRR = 0;
 
 int interL, interFL, interFR, interR;
 
-const double kP = 0.15 ;
+const double kP = 0.15;
 const double kI = 0.0;
 const double kD = 0.0;
 double oldError = 0.0;//used in D control
 double sumOfErrors = 0.0;//used in I control
 volatile long errorCount = 0;//used in I control
 
-const int correctionTotal = 550; //used to flag absense of walls
+const int correctionTotal = 450; //used to flag absense of walls
 int stickToWallValue = 0;//used in 1-wall control
 //L = 0 R = 1
 bool stickToWallLorR = 0;
@@ -157,7 +158,7 @@ unsigned long currentMillis;
 
 const unsigned long blinkerDelay = 1000;
 
-const unsigned long irDelay = 1;
+const unsigned long irDelay = 2;
 bool areIREmittersOn = true;
 
 const unsigned long infoDelay = 100;
@@ -252,6 +253,8 @@ void setup() {
   checkQueue[0] = mazeDist[0][0];
   checkSize++;
   //debug keyboard
+
+  randomSeed(analogRead(unusedPin));
   
   //set bounds
   //ready to go
@@ -394,7 +397,7 @@ void loop() {
   
   //breaks after a cell or action is completed
   if(recoveryMode) {
-    if(userCommand == USERBRK && currentMillis - actionMillis >= recovRevDelay) {
+    if(userCommand == USERBRK && currentMillis - actionMillis >= recovRevDelay/2) {
       userCommand = USERREV;
       switchMove = false;
       actionFinished = false;
@@ -718,7 +721,7 @@ if(userCommand == USERRIG) {
     actionFinished = false;
     actionMillis = currentMillis;
   }
-
+  //userCommand = USERBRK;
   if(userCommand != USERLEF && userCommand != USERRIG) {
     moveMouse(userCommand, speedLeft, speedRight, forwardPinL, reversePinL, forwardPinR, reversePinR);
   }
