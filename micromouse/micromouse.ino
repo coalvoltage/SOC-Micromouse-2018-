@@ -174,10 +174,10 @@ void leftEncoderEvent();
 void rightEncoderEvent();
 
 int newCommand();//global variable char instructionMethod controls which function generates instructions
-int proceduralCommand();//instructionMethod = 'p'
-int randomCommand();//instructionMethod = 'r'
-int solverCommand();//instructionMethod = 's'
-const char instructionMethod = 'p';
+int proceduralCommand();//set instructionMethod to 'p'
+int randomCommand();//set instructionMethod to 'r'
+int solverCommand();//set instructionMethod to 's'
+const char instructionMethod = 'r';
 
 //debug values
 char keyboardInput = '0';
@@ -229,9 +229,9 @@ void setup() {
 	  for(int j = 0; j < sizeY/2; j++) {
       int val = sizeX - i - j - 2;
       mazeDist[i][j] = val;
-      mazeDist[sizeX - i - 1][sizeY - j - 1] = sizeX - i - j -2;
-      mazeDist[i][sizeY - j - 1] = sizeX - i - j - 2;
-      mazeDist[sizeX - i - 1][j] = sizeX - i - j - 2;
+      mazeDist[sizeX - i - 1][sizeY - j - 1] = val;
+      mazeDist[i][sizeY - j - 1] = val;
+      mazeDist[sizeX - i - 1][j] = val;
 	  }
   }
   checkQueue[0] = mazeDist[0][0];
@@ -274,11 +274,11 @@ void loop() {
   //blinks led every 2 loops
   currentMillis = millis();
   if(currentMillis - blinkerMillis >= blinkerDelay) {
-    if (!isLedOn) {
+    if(!isLedOn) {
       digitalWrite(ledPin, HIGH);
       isLedOn = true;
     }
-    else {
+    else{
       digitalWrite(ledPin, LOW);
       isLedOn = false;
     }
@@ -559,35 +559,19 @@ void loop() {
     }
   }//action finshed, generate new instruction:
   else {
-    if(switchMove) {
-      if(wallFront) {
-        if(!wallLeft) {
-          userCommand = USERLEF;
-        }
-        else if(!wallRight) {
-          userCommand = USERRIG;
-        }
-        else {
-          userCommand = USERINV;
-        }
-      }
-      else {
-        userCommand = USERFOR;
-      }
-    }
-    else {
-      userCommand = USERBRK;
-    }
+    userCommand = newCommand();
 
     switchMove = (userCommand == USERBRK);
     actionFinished = false;
 
+    //begin turn if wallFront
     if(wallFront) {
       actionLeft = false;
       actionRight = false;
       isTurning = true;
     }
 
+    //if no walls, max speed
     if(!wallRight || !wallLeft) {
       speedLeft = speedMaxLeft;
       speedRight = speedMaxRight;
